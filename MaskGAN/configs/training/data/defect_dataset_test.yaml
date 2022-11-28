@@ -1,0 +1,13 @@
+# @package _group_
+
+batch_size: 10
+val_batch_size: 2
+num_workers: 4
+
+train:
+  indir: ${location.data_root_dir}
+  out_size: 256
+
+  dataloader_kwargs:
+    shuffle: True
+    num_workers: ${data.num_workers}
