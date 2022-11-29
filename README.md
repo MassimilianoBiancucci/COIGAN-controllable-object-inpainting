@@ -1,5 +1,5 @@
 <p>
-<img align="left" width="100"  src="images/coilgun.png" style="margin-right:20px; top: -60px">
+<img align="left" width="120"  src="images/coilgun.png" style="margin-right:20px; top: -60px">
 <h1> COIGAN controllable object inpainting</h1>
 </p>
 
