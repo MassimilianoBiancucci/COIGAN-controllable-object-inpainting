@@ -1,5 +1,7 @@
 # @package _group_
 
+dataset_name: defect_dataset_test
+
 batch_size: 10
 val_batch_size: 2
 num_workers: 4

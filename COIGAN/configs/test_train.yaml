@@ -1,5 +1,8 @@
 # @package _group_
 
+conf_name: ${hydra:job.config_name}
+run_name: ${hydra:job.config_name}_${now:%d-%m-%Y_%H-%M-%S}
+
 training_model:
   visualize_each_iters: 1000
 
@@ -15,6 +18,10 @@ losses:
   resnet_pl:
     weight: 1.0
     weights_path: ${location.loss_models}
+
+wandb:
+  project: MaskGAN
+  entity: deep_learning_team
 
 defaults:
   - location: defect_dataset_local
