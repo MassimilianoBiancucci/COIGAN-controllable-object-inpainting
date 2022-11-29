@@ -1,4 +1,4 @@
-<img align="left" width="100"  src="images/coilgun.png" style="margin-right:20px; position:relative; top: -30px">
+<img align="left" width="150"  src="images/coilgun.png" style="margin-right:20px; position:relative; top: -60px">
 
 # COIGAN controllable object inpainting
 
