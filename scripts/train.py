@@ -37,35 +37,20 @@ def main(config: OmegaConf):
         checkpoints_dir = os.path.join(os.getcwd(), "checkpoints")
         os.makedirs(checkpoints_dir, exist_ok=True)
 
-        wandb_logger = WandbLogger(
-            project=config.wandb.project,
-            name=config.wandb.name,
-            config=config,
-            save_dir=os.getcwd(),
-            offline=config.wandb.offline,
-            id=config.wandb.id,
-            anonymous=config.wandb.anonymous,
-            log_model=config.wandb.log_model,
-            version=config.wandb.version,
-            entity=config.wandb.entity,
-            group=config.wandb.group,
-            tags=config.wandb.tags,
-            notes=config.wandb.notes,
-            save_code=config.wandb.save_code,
-            job_type=config.wandb.job_type,
-            dir=os.getcwd(),
-        )
+        # create the model checkpoint callback and the wandb logger
+        checkpointer = ModelCheckpoint(dirpath=checkpoints_dir, **config.trainer.checkpoint_kwargs)
+        logger = WandbLogger(**config.wandb)
 
-        trainer_kwargs = OmegaConf.to_container(config.trainer.kwargs, resolve=True)
-
+        # create the trainer
         trainer = Trainer(
-            callbacks=ModelCheckpoint(dirpath=checkpoints_dir, **config.trainer.checkpoint_kwargs),
-            logger=metrics_logger,
+            callbacks=checkpointer,
+            logger=logger,
             default_root_dir=os.getcwd(),
-            **trainer_kwargs
+            **config.trainer.kwargs
         )
 
-
+        # train the model
+        
 
     except KeyboardInterrupt:
         LOGGER.warning('Interrupted by user')

@@ -1,0 +1,5 @@
+data_root_dir: /home/max/Datasets/defects_dataset
+out_root_dir: /home/max/thesis/COIGAN-controllable-object-inpainting/experiments
+tb_dir: /home/max/thesis/COIGAN-controllable-object-inpainting/experiments/tb_logs
+pretrained_models: /home/ubuntu/thesis/COIGAN-controllable-object-inpainting/models
+loss_models: /home/ubuntu/thesis/COIGAN-controllable-object-inpainting/models_loss
