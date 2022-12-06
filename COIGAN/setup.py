@@ -27,12 +27,12 @@ setup(
     name="defect_unet",
     packages=find_packages(
         include=[
-            "configs",
-            "configs.*",
-            "losses",
-            "losses.*",
-            "models",
-            "models.*",
+            "evaluation",
+            "evaluation.*",
+            "modules",
+            "modules.*",
+            "training",
+            "training.*",
             "utils",
             "utils.*",
         ]

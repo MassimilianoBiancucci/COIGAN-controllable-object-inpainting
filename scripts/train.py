@@ -4,7 +4,6 @@ import logging
 import os
 import sys
 import traceback
-import datetime as dt
 
 import hydra
 from omegaconf import OmegaConf
@@ -13,8 +12,8 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
-
 from COIGAN.utils.ddp_utils import handle_ddp_parent_process, handle_ddp_subprocess
+from COIGAN.training.trainers import make_training_model
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,9 +36,14 @@ def main(config: OmegaConf):
         checkpoints_dir = os.path.join(os.getcwd(), "checkpoints")
         os.makedirs(checkpoints_dir, exist_ok=True)
 
-        # create the model checkpoint callback and the wandb logger
+        # create the model checkpoint callback
         checkpointer = ModelCheckpoint(dirpath=checkpoints_dir, **config.trainer.checkpoint_kwargs)
+        
+        # create the wandb logger
         logger = WandbLogger(**config.wandb)
+
+        #create the model
+        model = make_training_model(config)
 
         # create the trainer
         trainer = Trainer(
@@ -50,7 +54,7 @@ def main(config: OmegaConf):
         )
 
         # train the model
-        
+        trainer.fit(model)
 
     except KeyboardInterrupt:
         LOGGER.warning('Interrupted by user')
