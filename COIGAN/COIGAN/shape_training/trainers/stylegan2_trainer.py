@@ -12,7 +12,7 @@ import torch.multiprocessing as mp
 from torchvision import transforms, utils
 from tqdm import tqdm
 
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, read_write
 
 try:
     import wandb
@@ -38,57 +38,59 @@ class stylegan2_trainer:
 
     def __init__(self, rank, config: OmegaConf):
 
+        self.config = config
         self.device = rank
 
         self.generator = Generator(
-            config.size, 
-            config.latent, 
-            config.n_mlp, 
-            channel_multiplier=config.channel_multiplier,
-            out_channels=config.channels
+            self.config.size, 
+            self.config.latent, 
+            self.config.n_mlp, 
+            channel_multiplier=self.config.channel_multiplier,
+            out_channels=self.config.channels
         ).to(self.device)
 
         self.discriminator = Discriminator(
-            config.size, 
-            channel_multiplier=config.channel_multiplier,
-            in_channels=config.channels
+            self.config.size, 
+            channel_multiplier=self.config.channel_multiplier,
+            input_channels=self.config.channels
         ).to(self.device)
 
         self.g_ema = Generator(
-            config.size, 
-            config.latent, 
-            config.n_mlp, 
-            channel_multiplier=config.channel_multiplier,
-            out_channels=config.channels
+            self.config.size, 
+            self.config.latent, 
+            self.config.n_mlp, 
+            channel_multiplier=self.config.channel_multiplier,
+            out_channels=self.config.channels
         ).to(self.device)
 
         self.g_ema.eval()
         self.accumulate(self.g_ema, self.generator, 0)
 
-        g_reg_ratio = config.g_reg_every / (config.g_reg_every + 1)
-        d_reg_ratio = config.d_reg_every / (config.d_reg_every + 1)
+        g_reg_ratio = self.config.g_reg_every / (self.config.g_reg_every + 1)
+        d_reg_ratio = self.config.d_reg_every / (self.config.d_reg_every + 1)
 
         self.g_optim = optim.Adam(
             self.generator.parameters(),
-            lr=config.lr * g_reg_ratio,
+            lr=self.config.lr * g_reg_ratio,
             betas=(0 ** g_reg_ratio, 0.99 ** g_reg_ratio),
         )
 
         self.d_optim = optim.Adam(
             self.discriminator.parameters(),
-            lr=config.lr * d_reg_ratio,
+            lr=self.config.lr * d_reg_ratio,
             betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
         )
 
         # loading checkpoint
-        if config.ckpt is not None:
-            print("load model:", config.ckpt)
+        if self.config.ckpt is not None:
+            print("load model:", self.config.ckpt)
 
-            ckpt = torch.load(config.ckpt, map_location=lambda storage, loc: storage)
+            ckpt = torch.load(self.config.ckpt, map_location=lambda storage, loc: storage)
 
             try:
-                ckpt_name = os.path.basename(config.ckpt)
-                config.start_iter = int(os.path.splitext(ckpt_name)[0])
+                ckpt_name = os.path.basename(self.config.ckpt)
+                with read_write(self.config):
+                    self.config.start_iter = int(os.path.splitext(ckpt_name)[0])
 
             except ValueError:
                 pass
@@ -100,20 +102,21 @@ class stylegan2_trainer:
             self.g_optim.load_state_dict(ckpt["g_optim"])
             self.d_optim.load_state_dict(ckpt["d_optim"])
 
-        # using a distributed cluster
-        self.generator = nn.parallel.DistributedDataParallel(
-            self.generator,
-            device_ids=[rank],
-            output_device=rank,
-            broadcast_buffers=False,
-        )
+        if self.config.distributed:
+            # if using multiple GPUs, wrap the models with DistributedDataParallel
+            self.generator = nn.parallel.DistributedDataParallel(
+                self.generator,
+                device_ids=[rank],
+                output_device=rank,
+                broadcast_buffers=False,
+            )
 
-        self.discriminator = nn.parallel.DistributedDataParallel(
-            self.discriminator,
-            device_ids=[rank],
-            output_device=rank,
-            broadcast_buffers=False,
-        )
+            self.discriminator = nn.parallel.DistributedDataParallel(
+                self.discriminator,
+                device_ids=[rank],
+                output_device=rank,
+                broadcast_buffers=False,
+            )
 
         # define the std transformations
         preparation_transforms = [
@@ -123,10 +126,10 @@ class stylegan2_trainer:
             ]
 
         # define the augmentation transformations if the flag is set
-        if config.augment:
+        if self.config.augment:
             transformations = [
                 *preparation_transforms,
-                *augmentation_presets[config.augmentation_preset]
+                *augmentation_presets[self.config.augmentation_preset]
             ]
         else:
             transformations = preparation_transforms
@@ -137,29 +140,39 @@ class stylegan2_trainer:
         )
 
         # load the dataset
-        dataset = MultiResolutionDataset(config.path, transform, config.size)
+        dataset = MultiResolutionDataset(
+                self.config.data_root_dir, 
+                transform, 
+                self.config.size,
+                self.config.data_mask_flag
+            )
 
         # define the dataloader
         self.loader = data.DataLoader(
             dataset,
-            batch_size=config.batch,
-            sampler=data_sampler(dataset, shuffle=True, distributed=True),
+            batch_size=self.config.batch,
+            sampler=data_sampler(dataset, shuffle=True, distributed=self.config.distributed),
             drop_last=True,
         )
 
         # initialize wandb
-        if get_rank() == 0 and wandb is not None and config.wandb:
+        if get_rank() == 0 and wandb is not None and self.config.wandb:
             wandb.init(
-                project=config.wandb_project, 
-                entity=config.wandb_entity,
-                mode=config.wandb_mode
+                project=self.config.wandb_project, 
+                entity=self.config.wandb_entity,
+                mode=self.config.wandb_mode
             )
 
-            wandb.config.update(config.__dict__)
+            wandb.config.update(
+                OmegaConf.to_container(
+                    self.config
+                )
+            )
+        
 
     def train(self):
 
-        loader = self.sample_data(loader)
+        loader = self.sample_data(self.loader)
 
         pbar = range(self.config.iter)
 
@@ -185,7 +198,6 @@ class stylegan2_trainer:
             self.d_module = self.discriminator
 
         accum = 0.5 ** (32 / (10 * 1000))
-        ada_aug_p = self.config.augment_p if self.config.augment_p > 0 else 0.0
         r_t_stat = 0
 
         sample_z = torch.randn(self.config.n_sample, self.config.latent, device=self.device)
@@ -257,7 +269,7 @@ class stylegan2_trainer:
 
             if g_regularize:
                 path_batch_size = max(1, self.config.batch // self.config.path_batch_shrink)
-                noise = self.mixing_noise(path_batch_size, self.config.latent, self.config.mixing, device)
+                noise = self.mixing_noise(path_batch_size, self.config.latent, self.config.mixing, self.device)
                 fake_img, latents = self.generator(noise, return_latents=True)
 
                 path_loss, mean_path_length, path_lengths = self.g_path_regularize(
@@ -298,7 +310,6 @@ class stylegan2_trainer:
                     (
                         f"d: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; "
                         f"path: {path_loss_val:.4f}; mean path: {mean_path_length_avg:.4f}; "
-                        f"augment: {ada_aug_p:.4f}"
                     )
                 )
 
@@ -314,7 +325,7 @@ class stylegan2_trainer:
                         )
                         utils.save_image(
                             grid_sample,
-                            f"{self.config.sample_folder}/{str(i).zfill(6)}.png"
+                            f"{self.config.sampl_dir}/{str(i).zfill(6)}.png"
                         )
                         wandb.log({"Samples": wandb.Image(grid_sample)})
 
@@ -323,7 +334,6 @@ class stylegan2_trainer:
                         {
                             "Generator": g_loss_val,
                             "Discriminator": d_loss_val,
-                            "Augment": ada_aug_p,
                             "Rt": r_t_stat,
                             "R1": r1_val,
                             "Path Length Regularization": path_loss_val,
@@ -337,15 +347,14 @@ class stylegan2_trainer:
                 if i % 10000 == 0:
                     torch.save(
                         {
-                            "g": g_module.state_dict(),
-                            "d": d_module.state_dict(), 
+                            "g": self.g_module.state_dict(),
+                            "d": self.d_module.state_dict(), 
                             "g_ema": self.g_ema.state_dict(),
                             "g_optim": self.g_optim.state_dict(),
                             "d_optim": self.d_optim.state_dict(),
                             "self.config": self.config,
-                            "ada_aug_p": ada_aug_p,
                         },
-                        f"{self.config.checkpoint_folder}/{str(i).zfill(6)}.pt",
+                        f"{self.config.ckpt_dir}/{str(i).zfill(6)}.pt",
                     )
 
     @staticmethod

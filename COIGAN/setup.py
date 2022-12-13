@@ -5,6 +5,8 @@ from setuptools import setup, find_packages
 requirements = [
     "numpy",
     "opencv-python-headless",
+    "wandb",
+    "torch",
 ]
 
 test_requirements = []
@@ -23,8 +25,8 @@ setup(
     install_requires=requirements,
     long_description="",
     include_package_data=True,
-    keywords="defect_unet",
-    name="defect_unet",
+    keywords="COIGAN",
+    name="COIGAN",
     packages=find_packages(
         include=[
             "evaluation",
@@ -33,6 +35,8 @@ setup(
             "modules.*",
             "training",
             "training.*",
+            "shape_training",
+            "shape_training.*",
             "utils",
             "utils.*",
         ]

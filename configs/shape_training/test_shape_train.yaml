@@ -1,39 +1,56 @@
 # @package _group_
 
-conf_name: ${hydra:job.config_name}
-run_name: ${hydra:job.config_name}_${now:%d-%m-%Y_%H-%M-%S}
+conf_name: test_shape_train
+run_name: ${conf_name}_${now:%d-%m-%Y_%H-%M-%S}
 
-path: /home/ubuntu/hdd/Datasets/tile_dataset_1_defect_masks_bruises_lmdb
-arch: ARCH
+# paths ###################
+# location of the checkpoint to resume training from
+ckpt: null 
+# location of the dataset
+data_root_dir: /home/ubuntu/hdd/Datasets/tile_dataset_1_defect_masks_bruises_lmdb
+# location of the output directory (where checkpoints and log images will be saved)
+out_root_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting/experiments_shape
+# location of checkpoint dir
+ckpt_dir: ${out_root_dir}/${run_name}/checkpoints
+# location samples folder
+sampl_dir: ${out_root_dir}/${run_name}/samples
+###########################
+
+# model parameters
+size: 128 # size of the output image
+channels: 1 # number of channels in the output image
+channel_multiplier: 1 # scale the number of weights
+latent: 512 # size of the latent vector
+n_mlp: 8 # number of layers in the mapping network
+
+# training parameters
+start_iter: 0
 iter: 800000
 batch: 32
 n_sample: 64
-size: 128
-channels: 3
+mixing: 0.9
+lr: 0.002
+augment: True
+augmentation_preset: preset_1 # present in shape_training/data/augmentation_presets
+
+# regularization parameters
 r1: 10
 path_regularize: 2
 path_batch_shrink: 2
 d_reg_every: 16
 g_reg_every: 4
-mixing: 0.9
-ckpt: None
-lr: 0.002
-channel_multiplier: 1
 
-augment: False
-
+# training options
 distributed: True
+data_mask_flag: True # if True, from the imgs in the dataset will be extracted only one channel if more than one is present
+# NOTE: only needed if the dataset has masks with 3 channels and the network has only one channel. 
 
+# datalogging options (wandb)
 wandb: True # set to false if you don't want to use wandb
 wandb_project: stylegan2
 wandb_entity: deep_learning_team
 wandb_mode: online
 
 defaults:
-  - location: defect_dataset_maks_local
-  - data: defect_masks_dataset_test
-  - generator: stylegan2_generator
-  - discriminator: stylegan2_discriminator
-  - optimizers: default_optimizers
-  - trainer: any_gpu_ddp
   - hydra: overrides
+

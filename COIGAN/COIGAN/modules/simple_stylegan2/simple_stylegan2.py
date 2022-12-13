@@ -263,7 +263,13 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], input_channels=3):
+    def __init__(
+        self, 
+        size, 
+        channel_multiplier=2, 
+        blur_kernel=[1, 3, 3, 1], 
+        input_channels=3
+    ):
         super().__init__()
 
         self.in_ch = input_channels

@@ -53,7 +53,8 @@ class MultiResolutionDataset(Dataset):
         img = self.transform(img)
 
         if self.mask:
-            # take only the first channel
-            img = img[0, :, :].unsqueeze(0)
+            if img.shape[0] > 1:
+            # take only the first channel if present more than one
+                img = img[0, :, :].unsqueeze(0)
 
         return img.contiguous()
