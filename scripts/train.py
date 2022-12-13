@@ -18,7 +18,7 @@ from COIGAN.training.trainers import make_training_model
 LOGGER = logging.getLogger(__name__)
 
 @handle_ddp_subprocess()
-@hydra.main(config_path='..MaskGAN/configs/training', config_name='test_train.yaml')
+@hydra.main(config_path='..configs/training', config_name='test_train.yaml')
 def main(config: OmegaConf):
 
     try:

@@ -1,0 +1,2 @@
+data_root_dir: /home/max/Datasets/defects_dataset_shape
+out_root_dir: /home/max/thesis/COIGAN-controllable-object-inpainting/experiments_shape

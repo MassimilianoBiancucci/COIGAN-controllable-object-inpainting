@@ -1,0 +1,39 @@
+# @package _group_
+
+conf_name: ${hydra:job.config_name}
+run_name: ${hydra:job.config_name}_${now:%d-%m-%Y_%H-%M-%S}
+
+path: /home/ubuntu/hdd/Datasets/tile_dataset_1_defect_masks_bruises_lmdb
+arch: ARCH
+iter: 800000
+batch: 32
+n_sample: 64
+size: 128
+channels: 3
+r1: 10
+path_regularize: 2
+path_batch_shrink: 2
+d_reg_every: 16
+g_reg_every: 4
+mixing: 0.9
+ckpt: None
+lr: 0.002
+channel_multiplier: 1
+
+augment: False
+
+distributed: True
+
+wandb: True # set to false if you don't want to use wandb
+wandb_project: stylegan2
+wandb_entity: deep_learning_team
+wandb_mode: online
+
+defaults:
+  - location: defect_dataset_maks_local
+  - data: defect_masks_dataset_test
+  - generator: stylegan2_generator
+  - discriminator: stylegan2_discriminator
+  - optimizers: default_optimizers
+  - trainer: any_gpu_ddp
+  - hydra: overrides
