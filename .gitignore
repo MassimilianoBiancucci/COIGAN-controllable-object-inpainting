@@ -131,3 +131,7 @@ dmypy.json
 # every model checkpoint
 *.pth
 *.pt
+
+# all the experiments folders
+experiments/
+experiments_*/
