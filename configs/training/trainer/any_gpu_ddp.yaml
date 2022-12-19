@@ -9,6 +9,9 @@ kwargs:
   val_check_interval: 1000
   log_every_n_steps: 100
   precision: 32
+  #  precision: 16
+  #  amp_backend: native
+  #  amp_level: O1
   terminate_on_nan: False
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 8

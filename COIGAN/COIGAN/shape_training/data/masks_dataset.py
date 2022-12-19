@@ -5,8 +5,8 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 
-class MultiResolutionDataset(Dataset):
-    def __init__(self, path, transform, resolution=256, mask=False):
+class MultiResolutionMasksDataset(Dataset):
+    def __init__(self, path, transform, resolution=256):
         """Multi resolution dataset allow to load images in lmdb format
 
         Args:
@@ -38,7 +38,6 @@ class MultiResolutionDataset(Dataset):
 
         self.resolution = resolution
         self.transform = transform
-        self.mask = mask
 
     def __len__(self):
         return self.length
@@ -51,10 +50,5 @@ class MultiResolutionDataset(Dataset):
         buffer = BytesIO(img_bytes)
         img = Image.open(buffer)
         img = self.transform(img)
-
-        if self.mask:
-            if img.shape[0] > 1:
-            # take only the first channel if present more than one
-                img = img[0, :, :].unsqueeze(0)
 
         return img.contiguous()

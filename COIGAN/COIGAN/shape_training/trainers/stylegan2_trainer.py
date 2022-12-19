@@ -2,13 +2,10 @@ import math
 import random
 import os
 
-import numpy as np
 import torch
 from torch import nn, autograd, optim
 from torch.nn import functional as F
 from torch.utils import data
-import torch.distributed as dist
-import torch.multiprocessing as mp
 from torchvision import transforms, utils
 from tqdm import tqdm
 
@@ -21,7 +18,7 @@ except ImportError:
     wandb = None
 
 from COIGAN.shape_training.data.augmentation_presets import augmentation_presets
-from COIGAN.shape_training.data.dataset import MultiResolutionDataset
+from COIGAN.shape_training.data.masks_dataset import MultiResolutionMasksDataset
 
 from COIGAN.utils.stylegan2_ddp_utils import (
     get_rank,
@@ -31,8 +28,8 @@ from COIGAN.utils.stylegan2_ddp_utils import (
     data_sampler
 )
 
-from COIGAN.modules.simple_stylegan2.op import conv2d_gradfix
-from COIGAN.modules.simple_stylegan2.simple_stylegan2 import Generator, Discriminator
+from COIGAN.modules.stylegan2.op import conv2d_gradfix
+from COIGAN.modules.stylegan2.swagan import Generator, Discriminator
 
 class stylegan2_trainer:
 
@@ -121,8 +118,9 @@ class stylegan2_trainer:
         # define the std transformations
         preparation_transforms = [
                 transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
+                #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True), 
             ]
 
         # define the augmentation transformations if the flag is set
@@ -140,11 +138,10 @@ class stylegan2_trainer:
         )
 
         # load the dataset
-        dataset = MultiResolutionDataset(
+        dataset = MultiResolutionMasksDataset(
                 self.config.data_root_dir, 
                 transform, 
-                self.config.size,
-                self.config.data_mask_flag
+                self.config.size
             )
 
         # define the dataloader
@@ -211,6 +208,9 @@ class stylegan2_trainer:
                 break
 
             real_img = next(loader)
+
+            #DEBUG
+            one_img = real_img[0]
             real_img = real_img.to(self.device)
 
             self.requires_grad(self.generator, False)
@@ -321,7 +321,7 @@ class stylegan2_trainer:
                             sample, 
                             nrow=int(self.config.n_sample ** 0.5), 
                             normalize=True, 
-                            value_range=(-1, 1)
+                            value_range=(0, 1)
                         )
                         utils.save_image(
                             grid_sample,

@@ -9,12 +9,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DistributedSampler # TODO: remove if not needed
 
-# TODO: add evaluator
 # TODO: add dataloader for train and val
-# TODO: add visualizer
+
+from COIGAN.evaluation import make_evaluator
+from COIGAN.training.visualizers import make_visualizer
+
 from COIGAN.training.losses.adversarial import make_discrim_loss
 from COIGAN.training.losses.perceptual import PerceptualLoss, ResNetPL
 from COIGAN.modules import make_generator, make_discriminator
+
 
 from COIGAN.utils.train_utils import make_optimizer, update_running_average
 from COIGAN.utils.common_utils import add_prefix_to_keys, average_dicts, set_requires_grad, flatten_dict
@@ -22,13 +25,14 @@ from COIGAN.utils.ddp_utils import get_has_ddp_rank
 
 LOGGER = logging.getLogger(__name__)
 
-class BaseInpaintingTrainingModule(ptl.LightningModule):
+class BaseObjectInpaintingTrainingModule(ptl.LightningModule):
+
     def __init__(self, config, use_ddp, *args,  predict_only=False, visualize_each_iters=100,
                  average_generator=False, generator_avg_beta=0.999, average_generator_start_step=30000,
                  average_generator_period=10, store_discr_outputs_for_vis=False,
                  **kwargs):
         super().__init__(*args, **kwargs)
-        LOGGER.info('BaseInpaintingTrainingModule init called')
+        LOGGER.info('BaseObjectInpaintingTrainingModule init called')
 
         self.config = config
 
@@ -39,10 +43,19 @@ class BaseInpaintingTrainingModule(ptl.LightningModule):
             LOGGER.info(f'Generator\n{self.generator}')
 
         if not predict_only:
+            
             self.save_hyperparameters(self.config)
+            
+            # make discriminator
             self.discriminator = make_discriminator(**self.config.discriminator)
+            
+            # make discriminator loss
             self.adversarial_loss = make_discrim_loss(**self.config.losses.adversarial)
+           
+            # make visualizer
             self.visualizer = make_visualizer(**self.config.visualizer)
+
+            # make evaluators
             self.val_evaluator = make_evaluator(**self.config.evaluator)
             self.test_evaluator = make_evaluator(**self.config.evaluator)
 
@@ -83,6 +96,12 @@ class BaseInpaintingTrainingModule(ptl.LightningModule):
         LOGGER.info('BaseInpaintingTrainingModule init done')
 
     def configure_optimizers(self):
+        """
+        Method required by pytorch-lightning. Returns optimizers and schedulers.
+
+        Returns:
+            _type_: _description_
+        """
         discriminator_params = list(self.discriminator.parameters())
         return [
             dict(optimizer=make_optimizer(self.generator.parameters(), **self.config.optimizers.generator)),
@@ -113,6 +132,16 @@ class BaseInpaintingTrainingModule(ptl.LightningModule):
         return res
 
     def training_step(self, batch, batch_idx, optimizer_idx=None):
+        """pytorch lightning training step Callback !!
+
+        Args:
+            batch (_type_): _description_
+            batch_idx (_type_): _description_
+            optimizer_idx (_type_, optional): _description_. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         self._is_training_step = True
         return self._do_step(batch, batch_idx, mode='train', optimizer_idx=optimizer_idx)
 
@@ -125,6 +154,7 @@ class BaseInpaintingTrainingModule(ptl.LightningModule):
         else:
             mode = 'extra_val'
             extra_val_key = self.extra_val_titles[dataloader_idx - 2]
+            
         self._is_training_step = False
         return self._do_step(batch, batch_idx, mode=mode, extra_val_key=extra_val_key)
 

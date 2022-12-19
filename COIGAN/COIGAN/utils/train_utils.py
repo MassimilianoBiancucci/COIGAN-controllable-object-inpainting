@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import bisect
 
+from pytorch_lightning import seed_everything
+
 
 def make_optimizer(parameters, kind='adamw', **kwargs):
     if kind == 'adam':
@@ -70,3 +72,12 @@ def get_ramp(kind='ladder', **kwargs):
     if kind == 'ladder':
         return LadderRamp(**kwargs)
     raise ValueError(f'Unexpected ramp kind: {kind}')
+
+
+def handle_deterministic_config(config):
+    seed = dict(config).get('seed', None)
+    if seed is None:
+        return False
+
+    seed_everything(seed)
+    return True

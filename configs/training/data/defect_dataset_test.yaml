@@ -2,14 +2,33 @@
 
 dataset_name: defect_dataset_test
 
+out_size: 256
 batch_size: 10
 val_batch_size: 2
 num_workers: 4
+val_num_workers: 4
 
-train:
-  indir: ${location.data_root_dir}
-  out_size: 256
+base:
+  kind: cars_dataset
+  
+  base_dataset_kwargs:
+    indir: ${location.data_root_dir}/base
+    size: ${out_size}
+    mask_applicator_kwargs:
 
   dataloader_kwargs:
+    batch_size: ${data.batch_size}
     shuffle: True
     num_workers: ${data.num_workers}
+
+objects:
+  kind: defects
+  base_dataset_kwargs:
+    indir: ${location.data_root_dir}/objects
+    size: ${out_size}
+
+  dataloader_kwargs:
+    batch_size: ${data.batch_size}
+    shuffle: True
+    num_workers: ${data.num_workers}
+

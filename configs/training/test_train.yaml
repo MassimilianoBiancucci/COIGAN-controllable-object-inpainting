@@ -4,23 +4,31 @@ conf_name: ${hydra:job.config_name}
 run_name: ${hydra:job.config_name}_${now:%d-%m-%Y_%H-%M-%S}
 
 training_model:
+  kind: default
   visualize_each_iters: 1000
+  concat_mask: true
+  store_discr_outputs_for_vis: true
 
 losses:
   l1:
-    weight: 1.0
+    weight_missing: 0
+    weight_known: 10
   perceptual:
-    weight: 1.0
+    weight: 0
   adversarial:
-    weight: 1.0
+    kind: r1
+    weight: 10
+    gp_coef: 0.001
+    mask_as_fake_target: true
+    allow_scale_mask: true
   feature_matching:
-    weight: 1.0
+    weight: 100
   resnet_pl:
-    weight: 1.0
-    weights_path: ${location.loss_models}
+    weight: 30
+    weights_path: ${env:TORCH_HOME}
 
 wandb:
-  project: MaskGAN
+  project: COIGAN
   entity: deep_learning_team
 
 defaults:

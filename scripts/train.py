@@ -13,6 +13,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
 from COIGAN.utils.ddp_utils import handle_ddp_parent_process, handle_ddp_subprocess
+from COIGAN.utils.train_utils import handle_deterministic_config
 from COIGAN.training.trainers import make_training_model
 
 LOGGER = logging.getLogger(__name__)
@@ -23,10 +24,16 @@ def main(config: OmegaConf):
 
     try:
 
+        # resolve the config
+        OmegaConf.resolve(config)
+
         LOGGER.info(f'Config: {OmegaConf.to_yaml(config)}')
 
         # check if that one is the 
         is_ddp_subprocess = handle_ddp_parent_process()
+
+        # set deterministic process
+        is_deterministic = handle_deterministic_config(config)
 
         if not is_ddp_subprocess:
             LOGGER.info(f"training configs: \n{config.pretty()}")

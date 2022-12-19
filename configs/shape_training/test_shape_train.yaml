@@ -18,7 +18,7 @@ sampl_dir: ${out_root_dir}/${run_name}/samples
 
 # model parameters
 size: 128 # size of the output image
-channels: 1 # number of channels in the output image
+channels: 3 # number of channels in the output image #NOTE: swagan has some bug with only 1 channel, but work smoothly with 3 channels
 channel_multiplier: 1 # scale the number of weights
 latent: 512 # size of the latent vector
 n_mlp: 8 # number of layers in the mapping network
@@ -42,8 +42,6 @@ g_reg_every: 4
 
 # training options
 distributed: True
-data_mask_flag: True # if True, from the imgs in the dataset will be extracted only one channel if more than one is present
-# NOTE: only needed if the dataset has masks with 3 channels and the network has only one channel. 
 
 # datalogging options (wandb)
 wandb: True # set to false if you don't want to use wandb
