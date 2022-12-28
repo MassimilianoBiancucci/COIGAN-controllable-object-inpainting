@@ -3,7 +3,7 @@ import logging
 
 from typing import List, Tuple, Dict, Union
 
-from COIGAN.training.data.jsonl_dataset import JsonLineDataset, JsonLineDatasetMasksOnly
+from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDataset, JsonLineDatasetMasksOnly
 
 LOGGER = logging.getLogger(__name__)
 

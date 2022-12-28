@@ -18,7 +18,12 @@ class JsonLineDatasetBaseGenerator:
     with the relative index file.
     """
 
-    def __init__(self, out_path, dump_every=1000, binary=False):
+    def __init__(
+        self,
+        out_path,
+        dump_every=1000,
+        binary=False
+    ):
         """
         Init the dataset generator, creating the dataset file and the index file.
 
@@ -73,7 +78,7 @@ class JsonLineDatasetBaseGenerator:
         Method that given a dump them in the dataset file.
         storing the index of the line in the index file.
         """
-        print("dumping block..")
+        LOGGER.debug("dumping block..")
         with open(self.index_path, "a") as index_f, open(self.dataset_path, "a") as f:
             for data in data_block:
                 index_f.write(f"{f.tell()}\n")    
@@ -87,7 +92,7 @@ class JsonLineDatasetBaseGenerator:
         Method that given a dump them in the dataset file.
         storing the index of the line in the index file.
         """
-        print("dumping block..")
+        LOGGER.debug("dumping block..")
         with open(self.index_path, "ab") as index_f, open(self.dataset_path, "ab") as f:
             for data in data_block:
                 index_f.write(f.tell().to_bytes(4, byteorder="little"))
@@ -221,7 +226,7 @@ if __name__ == "__main__":
     ##############################################################################
     ##### READING TESTS ON INT POLYGONS
 
-    from COIGAN.training.data.jsonl_dataset import JsonLineDatasetBase
+    from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDatasetBase
 
     dataset = JsonLineDatasetBase(out_path+"/dataset.jsonl", out_path+"/index")
     dataset.on_worker_init()

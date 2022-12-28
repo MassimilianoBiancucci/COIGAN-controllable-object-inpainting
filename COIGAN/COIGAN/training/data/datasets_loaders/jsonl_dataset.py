@@ -4,6 +4,7 @@ import logging
 import cv2
 import numpy as np
 
+from tqdm import tqdm
 from typing import Tuple, Union, Dict
 
 LOGGER = logging.getLogger(__name__)
@@ -151,6 +152,48 @@ class JsonLineDatasetBase:
         self.jsonl.close()
 
 
+    def map_field_classes(self, excluded_fields: list[str] = ["img"]):
+        """
+        Map the classes of a field to a list of classes.
+        The classes are mapped to the index of the class in the list.
+        If a class is not in the list, it is mapped to -1.
+
+        Args:
+            excluded_fields (list[str], optional): list of fields to exclude from the mapping. Defaults to ["img"].
+
+        Returns:
+            dict: dictionary with the mapping of each field
+                es: 
+                {
+                    "field1": [
+                        "class1",
+                        "class2",
+                        "class3"
+                    ],
+                    "field2": [
+                        ...
+                    ]
+                }
+        """
+
+        LOGGER.info("Mapping fields and classes...")
+
+        fields_map = {}
+        for i in tqdm(range(len(self.ids))):
+            metadata = self._get_metadata(i)
+            for field in metadata:
+                if field not in excluded_fields:
+                    if field not in fields_map:
+                        fields_map[field] = set()
+                    for obj in metadata[field]:
+                        fields_map[field].add(obj["label"])
+
+        for field in fields_map:
+            fields_map[field] = sorted(list(fields_map[field]))
+
+        return fields_map
+
+
 
 class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
 
@@ -162,6 +205,7 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
         classes: Union[list[str],None] = None,
         size: Union[Tuple[int, int], int] = (256, 256),
         points_normalized: bool = False,
+        binary: bool = False
     ):
         """
         Extension of the JsonLineDatasetBase class, for datasets with only masks and no images.
@@ -218,7 +262,11 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
             RuntimeError: _description_
         """
 
-        super(JsonLineDatasetMasksOnly, self).__init__(metadata_file_path, index_file_path)
+        super(JsonLineDatasetMasksOnly, self).__init__(
+            metadata_file_path, 
+            index_file_path,
+            binary
+        )
         
         self.masks_fields = masks_fields
         self.classes = classes
@@ -237,6 +285,7 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
         metadata: dict,
         shape: tuple,
         normalized_points: bool = False,
+        mask_value: int = 1,
     ) -> "dict[str, np.ndarray]":
         """
         Load all the masks in a given field, groupping all the masks with the same label
@@ -274,9 +323,9 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
                     if normalized_points:
                         points[:, 0] = points[:, 0] * shape[1]
                         points[:, 1] = points[:, 1] * shape[0]
-                        cv2.fillPoly(mask, [points.astype(np.int32)], 255)
+                        cv2.fillPoly(mask, [points.astype(np.int32)], mask_value)
                     else:
-                        cv2.fillPoly(mask, [points], 255)
+                        cv2.fillPoly(mask, [points], mask_value)
 
                 masks[polygons["label"]] = mask
 
@@ -296,7 +345,7 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
             Dict[str, Dict[str, np.ndarray]]: the masks of the sample, as dict with as keys the passed list of fields and as values other dicts with as keys the classes and as values the masks as numpy arrays.
             Tuple[dict, dict]: the masks of the sample in the same format as above and the raw metadata of the sample.
         """
-        metadata = self.get_metadata(idx)
+        metadata = self._get_metadata(idx)
 
         # load masks from the sample
         masks = {
@@ -304,7 +353,7 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
             for field in self.masks_fields
         }
         
-        return masks, metadata if ret_meta else masks
+        return (masks, metadata) if ret_meta else masks
 
 
     def __getitem__(self, idx: int) -> Dict[str, Dict[str, np.ndarray]]:
@@ -320,6 +369,68 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
         return self._get_masks(idx)
 
 
+class JsonLineDatasetSeparatedMasksOnly(JsonLineDatasetMasksOnly):
+    
+    """
+    Variant of the JsonLineDatasetMasksOnly that returns the masks in a different format.
+    In this case each polygon is returned as a separate mask, instead of being grouped into a single mask.
+    Instead of a single mask, under a class key there will be a list of masks.
+
+    NOTE: the __getitem__ method returns a dict[str, dict[str, list[np.ndarray]] !!
+    """
+
+    def load_masks(
+        self,
+        polygon_field: str,
+        metadata: dict,
+        shape: tuple,
+        normalized_points: bool = False,
+        mask_value: int = 1,
+    ) -> "dict[str, list[np.ndarray]]":
+        """
+        Load all the masks in a given field, groupping all the masks with the same label
+        in a single mask.
+
+        Args:
+            polygon_field (str): the name of the field containing the polygons
+            classes (List[str]): the list of classes to load
+            metadata (dict): the metadata of the sample
+            shape (tuple): the shape of the output mask
+            normalized_points (bool, optional): if the points are normalized. Defaults to False.
+
+        Returns:
+            dict[str, list[np.ndarray]]: a dict mapping the class to the mask
+        """
+
+        masks = {}
+
+        for polygon in metadata[polygon_field]:
+            
+            # if the class is in the list of classes to load or if the list is None
+            if self.classes is None or polygon["label"] in self.classes:
+
+                mask = np.zeros(shape, dtype=np.uint8)
+
+                for sub_poly in polygon["points"]:
+                    points = np.asarray(sub_poly)
+                    points = points.squeeze()
+
+                    # TODO workaround for bugs in some datasets
+                    # polygons with less than 3 points can bring to other bugs
+                    if points.shape[0] < 3:
+                        continue
+
+                    if normalized_points:
+                        points[:, 0] = points[:, 0] * shape[1]
+                        points[:, 1] = points[:, 1] * shape[0]
+                        cv2.fillPoly(mask, [points.astype(np.int32)], mask_value)
+                    else:
+                        cv2.fillPoly(mask, [points], mask_value)
+
+                masks[polygon["label"]] = masks.get(polygon["label"], []) + [mask]
+
+        return masks
+
 
 class JsonLineDataset(JsonLineDatasetMasksOnly):
 
@@ -332,6 +443,7 @@ class JsonLineDataset(JsonLineDatasetMasksOnly):
         classes: Union[list[str],None] = None,
         size: Union[Tuple[int, int], int] = (256, 256),
         points_normalized: bool = False,
+        binary: bool = False
     ):
         """
         Extension of the JsonLineDatasetMasksOnly class, 
@@ -391,13 +503,14 @@ class JsonLineDataset(JsonLineDatasetMasksOnly):
             RuntimeError: _description_
         """
 
-        super.__init__(
+        super(JsonLineDataset, self).__init__(
             metadata_file_path, 
             index_file_path,
             masks_fields,
             classes,
             size,
-            points_normalized
+            points_normalized,
+            binary
         )
 
         self.image_folder_path = image_folder_path

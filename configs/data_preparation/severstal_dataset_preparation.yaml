@@ -1,0 +1,43 @@
+
+#########################################
+# DATSET NAME
+# name of the generated dataset 
+dataset_name: test_1
+
+# Change this to your own path of the COIGAN-controllable-object-inpainting repo
+repo_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
+
+# principal dataset folder, where are placed all the varsion of the dataset
+dataset_dir: ${repo_dir}/datasets/severstal_steel_defect_dataset
+
+# dataset version locations
+zip_file: ${dataset_dir}/severstal-steel-defect-detection.zip
+raw_dataset_dir: ${dataset_dir}/raw
+jsonl_dataset_dir: ${dataset_dir}/jsonl_all_samples
+
+# general datapipeline settings
+binary: True
+
+# multiprocessing settings
+n_workers: -1 # -1 means all the available cpus
+q_size: 10
+
+# settings for the dataset converter
+# convert the dataset to the jsonl format
+dataset_preprocessor_kwargs:
+  output_dir: ${jsonl_dataset_dir}
+  tile_size: 256 # specify the tile size, to split the images from the dataset, (tile_size, tile_size)
+  dump_every: 10000 # specify every how many images to dump the jsonl file
+  binary: ${binary} # specify if the jsonl file should be binary or not (if binary almost 3x faster in writing and 1.3x faster in reading)
+  n_workers: ${n_workers} # specify the number of workers for the multiprocessing
+  q_size: ${q_size} # specify the queue size for the multiprocessing
+
+#settings for the dataset inspector
+dataset_inspector_kwargs:
+  dataset_path: ${jsonl_dataset_dir}
+  fields_to_inspect: 
+    - polygons
+  binary: ${binary}
+
+defaults:
+  - hydra: severstal_overrides
