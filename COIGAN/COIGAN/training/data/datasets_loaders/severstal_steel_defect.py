@@ -3,9 +3,12 @@ import csv
 import cv2
 import numpy as np
 import pandas as pd
+import logging
+
+from typing import Union
 from matplotlib import pyplot as plt
 
-import logging
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -20,17 +23,27 @@ class SeverstalSteelDefectDataset(object):
     def __init__(
         self,
         dataset_path: str,
-        mode: str = "all"
+        mode: str = "all",
+        format: str = "standard",
+        tile_size: Union[int, list[int]] = [256, 1600], # needed for "mask_only"
+        target_classes: list = ["1", "2", "3", "4"], # defect classes to load, in the given order
     ):
         """
             Initialize the Severstal Steel Defect Dataset reader
 
             Args:
                 dataset_path (str): Path to the dataset
+                
                 mode (str): Mode of the dataset. Can be "all", "defected" or "none_defected"
                     - all (default): All the images
                     - defected: Only the images with defects
                     - none_defected: Only the images without defects
+                
+                format (str): define the output format from the getitem method.
+                    - standard (default): return the image (H,W,3) and the mask (H,W,4)
+                    - mask_only: return only the mask (H,W,4)
+                    
+                tile_size (Union[int, list[int]]): Size of the samples in the dataset, used if the format is "mask_only" or "polygons_only"
                 
         """
 
@@ -42,6 +55,23 @@ class SeverstalSteelDefectDataset(object):
         if mode not in ["all", "defected", "none_defected"]:
             raise ValueError(f"The mode must be 'all', 'defected' or 'none_defected', got {mode}")
         self.mode = mode
+
+        if format not in ["standard", "mask_only"]:
+            raise ValueError(f"The format must be 'standard', 'mask_only', 'polygons_only' or 'masked_defects', got {format}")
+        self.format = format
+
+        if isinstance(tile_size, int):
+            tile_size = [tile_size, tile_size]
+        elif isinstance(tile_size, list):
+            if len(tile_size) != 2:
+                raise ValueError(f"The tile_size must be an int or a list of length 2, got {tile_size}")
+            else:
+                tile_size = tile_size
+
+        target_classes = [int(c) if isinstance(c, str) else c for c in target_classes] # convert to int if needed
+        if not all([c in range(1, self.n_classes+1) for c in target_classes]):
+            raise ValueError(f"The target_classes must be in the range [1, {self.n_classes}], got {target_classes}")
+        self.target_classes = target_classes
 
         # Load the images
         self.train_images_path = os.path.join(self.dataset_path, "train_images")
@@ -113,6 +143,24 @@ class SeverstalSteelDefectDataset(object):
                 mask (Union[np.array, None]): Masks of defects if any, None otherwise
         """
 
+        if self.format == "standard":
+            return self.getitem_standard(index)
+        elif self.format == "mask_only":
+            return self.getitem_mask_only(index)
+
+
+    def getitem_standard(self, index: int):
+        """
+            Get an item from the dataset, with standard format
+
+            Args:
+                index (int): Index of the item to get
+        
+            Returns:
+                image (np.array): Image
+                mask (Union[np.array, None]): Masks of defects if any, None otherwise
+        """
+
         img_name, classes, encoded_masks = self.get_metadata(index)
 
         # Get the image path
@@ -122,15 +170,41 @@ class SeverstalSteelDefectDataset(object):
 
         if classes is not None:
             # Create the masks
-            masks = np.zeros((h, w, self.n_classes), dtype=np.uint8)
-            for i, (mask_i, _class) in enumerate(zip(encoded_masks, classes)):
-                if mask_i is not np.nan:
-                    masks[:,:,_class-1] += self.rle2mask(mask_i, h, w)
+            masks = np.zeros((h, w, len(self.target_classes)), dtype=np.uint8)
+            for mask_i, _class in zip(encoded_masks, classes):
+                if mask_i is not np.nan and _class in self.target_classes:
+                    masks[:,:,self.target_classes.index(_class)] += self.rle2mask(mask_i, h, w)
+        else:
+            masks = None
+
+        return image, masks
+
+
+    def getitem_mask_only(self, index: int):
+        """
+            Method that return the masks of the sample
+
+            Args:
+                index (int): Index of the item to get
+        
+            Returns:
+                mask (Union[np.array, None]): Masks of defects if any, None otherwise
+        """
+        _, classes, encoded_masks = self.get_metadata(index)
+
+        h, w = self.tile_size
+
+        if classes is not None:
+            # Create the masks
+            masks = np.zeros((h, w, len(self.target_classes)), dtype=np.uint8)
+            for mask_i, _class in zip(encoded_masks, classes):
+                if mask_i is not np.nan and _class in self.target_classes:
+                    masks[:,:,self.target_classes.index(_class)] += self.rle2mask(mask_i, h, w)
         else:
             masks = None
         
-        return image, masks
-
+        return masks
+    
 
     def __iter__(self):
         """
@@ -172,11 +246,11 @@ class SeverstalSteelDefectDataset(object):
 
         mask = np.zeros(h*w, dtype=np.uint8)
         rle = rle.split()
-        starts = np.asarray(rle[0::2], dtype=int)
-        lengths = np.asarray(rle[1::2], dtype=int)
-        
+        starts = np.asarray(rle[0::2], dtype=np.int32)
+        lengths = np.asarray(rle[1::2], dtype=np.int32)
+
         for i in range(len(starts)):
-            mask[starts[i]:(starts[i]+lengths[i])] = 1
+            mask[starts[i]-1:((starts[i]-1)+lengths[i])] = 1
         mask = mask.reshape((w, h)).T
 
         return mask
@@ -207,8 +281,6 @@ class SeverstalSteelDefectDataset(object):
         report.write("Number of images with defects: {}\n".format(self.defected_imgs.__len__()))
         report.write("Number of images without defects: {}\n".format(self.none_defected_imgs.__len__()))
         
-
-
 
 if __name__ == "__main__":
 

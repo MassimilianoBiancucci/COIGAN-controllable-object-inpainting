@@ -183,8 +183,8 @@ class JsonLineDatasetInspector:
         # generate the brief report
         brief_report = {
             "n_samples": len(self.dataset),
-            "n_samples_with_polygons": np.sum(self.n_polygons_per_image != 0).item(),
-            "n_samples_without_polygons": np.sum(self.n_polygons_per_image == 0).item(),
+            "n_samples_with_polygons": np.sum(np.array(self.n_polygons_per_image) > 0).item(),
+            "n_samples_without_polygons": np.sum(np.array(self.n_polygons_per_image) == 0).item(),
             "n_polygons": self.n_polygons,
             "n_polygons_per_class": {
                 field: {
@@ -318,10 +318,10 @@ class JsonLineDatasetInspector:
         # histogram of number polygons class total distribution
         for field in self.n_polygons_per_class:
             plt.figure(figsize=(10, 10))
-            plt.hist(
+            plt.bar(
+                [f"class: {class_name}" for class_name in self.n_polygons_per_class[field]],
                 [np.sum(self.n_polygons_per_class[field][class_name]) for class_name in self.n_polygons_per_class[field]]
             )
-            plt.legend(self.n_polygons_per_class[field].keys())
             plt.title(f"Number of polygons per class total distribution")
             plt.savefig(f"{self.report_output_path}/reports/graphs/n_polygons_per_class_total_histogram.png")
             plt.close()
@@ -351,10 +351,14 @@ class NpEncoder(json.JSONEncoder):
 
 if __name__ == "__main__":
 
+    #target_dataset = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/jsonl_all_samples"
+    target_dataset = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/train_set"
+    #target_dataset = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/test_set"
+
     inspector = JsonLineDatasetInspector(
-        dataset_path = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/jsonl_all_samples",
+        dataset_path = target_dataset,
         fields_to_inspect = ["polygons"],
-        binary = False
+        binary = True
     )
 
     inspector.inspect()

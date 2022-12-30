@@ -1,1 +1,0 @@
-from COIGAN.training.data.cars_dataset import CarsDataset

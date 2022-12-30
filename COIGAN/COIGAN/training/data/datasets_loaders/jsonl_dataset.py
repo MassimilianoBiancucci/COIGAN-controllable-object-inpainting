@@ -59,8 +59,6 @@ class JsonLineDatasetBase:
         if not self.ids:
             raise RuntimeError(f"index file {self.index_file} is empty")
 
-        LOGGER.info(f"Creating dataset with {len(self.ids)} examples")
-
 
     def on_worker_init(self, *args, **kwargs):
         """
@@ -103,9 +101,15 @@ class JsonLineDatasetBase:
         Returns:
             dict: json as dict of the sample
         """
-        index = self.ids[idx]
-        self.jsonl.seek(index)
-        line = self.jsonl.readline()
+        index_s = self.ids[idx-1] if idx > 0 else 0
+        index_e = self.ids[idx]
+        
+        # seek to the start position of the sample
+        self.jsonl.seek(index_s)
+        
+        # get n bytes from the file
+        line = self.jsonl.read(index_e-index_s)
+
         metadata = pbjson.loads(line)
 
         return metadata
@@ -128,14 +132,24 @@ class JsonLineDatasetBase:
             return self._get_meta(idx)
 
 
-    def __getitem__(self, idx: int):
+    def __getitem__(self, idx: Union[slice, int, list[int]]):
         """
         Return the sample with the given index
         """
         if isinstance(idx, slice):
             return [self._get_metadata(i) for i in range(*idx.indices(len(self)))]
+        elif isinstance(idx, list) or isinstance(idx, np.ndarray):
+            return [self._get_metadata(i) for i in idx]
         else:
             return self._get_metadata(idx)
+
+
+    def __iter__(self):
+        """
+        Return an iterator over the dataset
+        """
+        for i in range(len(self)):
+            yield self._get_metadata(i)
 
 
     def __len__(self):
@@ -192,7 +206,6 @@ class JsonLineDatasetBase:
             fields_map[field] = sorted(list(fields_map[field]))
 
         return fields_map
-
 
 
 class JsonLineDatasetMasksOnly(JsonLineDatasetBase):

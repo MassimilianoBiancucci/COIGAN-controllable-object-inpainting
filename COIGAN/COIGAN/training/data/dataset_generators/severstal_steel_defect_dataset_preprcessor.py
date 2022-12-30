@@ -8,6 +8,8 @@ import traceback
 
 from tqdm import tqdm
 from multiprocessing import Process, Queue, cpu_count
+from omegaconf.listconfig import ListConfig
+from typing import Union, Tuple, List
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         self,
         raw_dataset: SeverstalSteelDefectDataset,
         output_dir: str,
-        tile_size: int,
+        tile_size: Union[int, Tuple[int, int], list[int], ListConfig],
         dump_every: int = 1000,
         binary: bool = True,
         n_workers: int = 1,
@@ -40,7 +42,7 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         Args:
             raw_dataset (SeverstalSteelDefectDataset): The raw dataset
             output_dir (str): Path to the output directory
-            tile_size (int): The size of the tile
+            tile_size (int, Tuple[int, int], list[int], ListConfig): The size of the tile
             dump_every (int, optional): Dump the metadata every n samples. Defaults to 1000.
             binary (bool, optional): If True the masks are binarized. Defaults to True.
             n_workers (int, optional): Number of workers to use. Defaults to 1.
@@ -55,7 +57,11 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         self.output_dir = output_dir
         self.data_dir = os.path.join(output_dir, "data")
         self.raw_dataset = raw_dataset
-        self.tile_size = (tile_size, tile_size)
+        
+        if isinstance(tile_size, (tuple, list, ListConfig)):
+            self.tile_size = tile_size
+        elif isinstance(tile_size, int):
+            self.tile_size = (tile_size, tile_size)
 
         self.n_workers = cpu_count() if n_workers == -1 else n_workers
         self.q_size = q_size
@@ -235,6 +241,11 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
 
         h, w = image.shape[:2]
 
+        # if the tile size is equal to the image size, return the image and the masks
+        # just jump the process
+        if h == tile_size[0] and w == tile_size[1]:
+            return [image], [_masks]
+
         images = []
         masks = []
 
@@ -262,7 +273,9 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
 
 
     @staticmethod
-    def masks_to_polygons(masks):
+    def masks_to_polygons(
+        masks
+    ):
         """
             Convert the masks into polygons.
 
@@ -314,7 +327,8 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         reduction_factor=4, 
         normalize=False, 
         min_poly_points=25,
-        min_allowed_poly_points=5    
+        min_allowed_poly_points=5,
+        check_validity=True
     ):
         """
         Method that return a list of poligons
@@ -328,6 +342,8 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
             normalize (bool): normalize the points between 0 and 1, default False
             min_poly_points (int): minimum number of points to reduce the number of points, default 25
             min_allowed_poly_points (int): minimum number of points allowed, default 5
+            check_validity (bool): check the validity of the polygon, default False, if True the function
+                                    will return only the valid polygons, and the number of skipped polygons.
         """
 
         h, w = mask.shape[:2]
@@ -364,7 +380,47 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         else:
             contours_norm = reduced_contours
 
+        # check if the polygon is valid
+        if check_validity:
+            valid_contours = []
+            for c in contours_norm:
+                if SeverstalSteelDefectPreprcessor.check_polygon_healt(c):
+                    valid_contours.append(c)
+            return valid_contours
+
         return contours_norm
+
+
+    @staticmethod
+    def check_polygon_healt(
+        polygon
+    ):
+        """
+        Check if the polygon is valid, if it's not valid, return False.
+        A valid polygon is a polygon with at least 3 points and with
+        at least 2 points in each axis different.
+
+        one polygon with all the x or y coordinates equal is not valid!
+
+        Args:
+            polygon (list[list[list[int]]]): list of points of the polygon
+            exception (bool): if True, raise an exception if the polygon is not valid, default False.
+
+        Returns:
+            bool: True if the polygon is valid, False otherwise.
+        """
+        # check the number of points
+        if polygon.shape[0] < 3:
+            LOGGER.warning("Found one polygon with less than 3 points!")
+            return False
+        
+        # check if there are at least 2 points in each axis
+        polygon = polygon.squeeze()
+        if len(set(polygon[:, 0])) < 2 or len(set(polygon[:, 1])) < 2:
+            LOGGER.warning("Found one polygon with all the points on the same line!")
+            return False
+
+        return True
 
 
 class PreprocessTask:

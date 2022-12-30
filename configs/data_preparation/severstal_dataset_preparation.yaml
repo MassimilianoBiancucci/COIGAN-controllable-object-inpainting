@@ -10,12 +10,19 @@ repo_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
 # principal dataset folder, where are placed all the varsion of the dataset
 dataset_dir: ${repo_dir}/datasets/severstal_steel_defect_dataset
 
-# dataset version locations
+# datasets locations
 zip_file: ${dataset_dir}/severstal-steel-defect-detection.zip
 raw_dataset_dir: ${dataset_dir}/raw
 jsonl_dataset_dir: ${dataset_dir}/jsonl_all_samples
 
+train_set_dir: ${dataset_dir}/${dataset_name}/train_set
+test_set_dir: ${dataset_dir}/${dataset_name}/test_set
+object_datasets_dir: ${dataset_dir}/${dataset_name}/object_datasets
+
+
 # general datapipeline settings
+original_tile_size: [256, 1600] # specify the original tile size, (tile_size, tile_size)
+tile_size: [256, 256] # specify the tile size, to split the images from the dataset, (tile_size, tile_size), used only in the tiler
 binary: True
 
 # multiprocessing settings
@@ -24,20 +31,68 @@ q_size: 10
 
 # settings for the dataset converter
 # convert the dataset to the jsonl format
+force_dataset_preprocessor: False # if True the dataset preprocessor will be forced to run, cancelling the previous dataset
 dataset_preprocessor_kwargs:
   output_dir: ${jsonl_dataset_dir}
-  tile_size: 256 # specify the tile size, to split the images from the dataset, (tile_size, tile_size)
-  dump_every: 10000 # specify every how many images to dump the jsonl file
+  tile_size: ${original_tile_size} # specify the tile size, to split the images from the dataset, (tile_size, tile_size)
+  dump_every: 1000 # specify every how many images to dump the jsonl file
   binary: ${binary} # specify if the jsonl file should be binary or not (if binary almost 3x faster in writing and 1.3x faster in reading)
   n_workers: ${n_workers} # specify the number of workers for the multiprocessing
   q_size: ${q_size} # specify the queue size for the multiprocessing
 
-#settings for the dataset inspector
+
+# settings for the dataset inspector
+# generate reports and statistics on the dataset
+# NOTE: the results are used for the splitting process
+force_dataset_inspector: False # if True the dataset inspector will be forced to run, cancelling the previous dataset
 dataset_inspector_kwargs:
   dataset_path: ${jsonl_dataset_dir}
   fields_to_inspect: 
     - polygons
   binary: ${binary}
+
+
+# settings for the dataset splitter
+force_dataset_splitter: False # if True the dataset splitter will be forced to run, cancelling the previous dataset
+split_mode: fair # specify the splitting mode, random or fair
+dataset_splitter_kwargs:
+  dataset_path: ${jsonl_dataset_dir}
+  output_dir: ${dataset_dir}/${dataset_name}
+  train_ratio: 0.5
+  test_ratio: 0.5
+  binary: ${binary}
+  target_field: polygons # needed for the fair splitting (ignored for the random splitting)
+  tile_size: ${original_tile_size}
+
+force_dataset_split_inspector: False # if True the dataset split inspector will be forced to run, cancelling the previous dataset
+# settings for the train split inspector
+train_split_inspector_kwargs:
+  dataset_path: ${train_set_dir}
+  fields_to_inspect: 
+    - polygons
+  binary: ${binary}
+
+# settings for the test split inspector
+test_split_inspector_kwargs:
+  dataset_path: ${test_set_dir}
+  fields_to_inspect: 
+    - polygons
+  binary: ${binary}
+
+# object datasets generation settings
+# parms for the extraction of the objects from train set
+force_object_dataset_generator: False # if True the object dataset generator will be forced to run, cancelling the previous dataset
+object_target_classes: ["0", "1", "2", "3"] # specify the classes to extract, for each class a new dataset will be generated
+object_dataset_generator_kwargs:
+  output_dir: ${object_datasets_dir}
+  target_field: polygons
+  tile_size: ${original_tile_size} # used only if the polygons in the original dataset are normalized
+  rst_origin: True
+  normalized: False
+  binary: ${binary}
+
+# object datasets inspection settings
+force_object_dataset_inspector: False # if True the object dataset inspector will be forced to run, cancelling the previous dataset
 
 defaults:
   - hydra: severstal_overrides

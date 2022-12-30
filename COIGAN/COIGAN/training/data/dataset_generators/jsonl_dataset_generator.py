@@ -95,11 +95,13 @@ class JsonLineDatasetBaseGenerator:
         LOGGER.debug("dumping block..")
         with open(self.index_path, "ab") as index_f, open(self.dataset_path, "ab") as f:
             for data in data_block:
-                index_f.write(f.tell().to_bytes(4, byteorder="little"))
-
                 f.write(pbjson.dumps(data))
-                f.write(b'\n')
 
+                endpos = f.tell()
+                byte_endpos = endpos.to_bytes(4, byteorder="little")
+                index_f.write(byte_endpos)
+
+                #index_f.write(f.tell().to_bytes(4, byteorder="little")) # add the pos of the last byte of the line in the dataset file
 
     def _dump(self):
         """
@@ -121,7 +123,12 @@ class JsonLineDatasetBaseGenerator:
         in the dataset file.
         """
 
-        self.cache.extend(samples)
+        if isinstance(samples, list):
+            self.cache.extend(samples)
+        elif isinstance(samples, dict):
+            self.cache.append(samples)
+        else:
+            raise TypeError("samples must be a list[dict] or a dict")
 
         if len(self.cache) >= self.dump_every:
             self._dump()
@@ -196,7 +203,7 @@ if __name__ == "__main__":
     out_path = os.path.join(out_path, f"test_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
     print(f"test out path: {out_path}")
 
-    n = 1000
+    n = 10
 
     ##############################################################################
     ##### WRITING TESTS ON INT POLYGONS
