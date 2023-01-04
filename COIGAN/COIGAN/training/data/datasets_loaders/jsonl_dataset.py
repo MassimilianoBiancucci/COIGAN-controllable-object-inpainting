@@ -269,6 +269,7 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
             classes (Union[list[str],None], optional): list of the classes to load. Defaults to None. if None, all the classes will be loaded.
             size (Union[Tuple[int, int], int], optional): size of the output masks. Defaults to (256, 256).
             points_normalized (bool, optional): if the points are normalized. Defaults to False. if the are in the range [0, 1], the points_normalized parameter must be set to True.
+            binary (bool, optional): if the metadata file is binary. Defaults to False.
 
         Raises:
             RuntimeError: _description_
@@ -280,7 +281,7 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
             index_file_path,
             binary
         )
-        
+
         self.masks_fields = masks_fields
         self.classes = classes
 
@@ -554,13 +555,13 @@ class JsonLineDataset(JsonLineDatasetMasksOnly):
         masks, metadata = self._get_masks(idx, ret_meta=True)
 
         # load the image
-        img = cv2.imread(os.path.join(self.image_folder_path, metadata["file_name"]))
+        img = cv2.imread(os.path.join(self.image_folder_path, metadata["img"]))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         if img is None:
-            raise RuntimeError(f"Image {metadata['file_name']} not found")
+            raise RuntimeError(f"Image {metadata['img']} not found")
         
-        return img, masks, metadata if ret_meta else img, masks
+        return (img, masks, metadata) if ret_meta else (img, masks)
 
 
     def __getitem__(self, idx: int) -> Dict[str, Dict[str, np.ndarray]]:
@@ -579,6 +580,14 @@ class JsonLineDataset(JsonLineDatasetMasksOnly):
             return [self._get_image_and_masks(i) for i in range(*idx.indices(len(self)))]
         else:
             return self._get_image_and_masks(idx)
+
+
+    def __iter__(self):
+        """
+        Return an iterator over the dataset
+        """
+        for i in range(len(self)):
+            yield self._get_image_and_masks(i)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ jsonl_dataset_dir: ${dataset_dir}/jsonl_all_samples
 train_set_dir: ${dataset_dir}/${dataset_name}/train_set
 test_set_dir: ${dataset_dir}/${dataset_name}/test_set
 object_datasets_dir: ${dataset_dir}/${dataset_name}/object_datasets
-
+base_dataset_dir: ${dataset_dir}/${dataset_name}/base_dataset
 
 # general datapipeline settings
 original_tile_size: [256, 1600] # specify the original tile size, (tile_size, tile_size)
@@ -93,6 +93,23 @@ object_dataset_generator_kwargs:
 
 # object datasets inspection settings
 force_object_dataset_inspector: False # if True the object dataset inspector will be forced to run, cancelling the previous dataset
+
+# base dataset generation settings
+# params for the extraction of images without objects from train set
+force_base_dataset_generator: False # if True the base dataset generator will be forced to run, cancelling the previous dataset
+base_dataset_generator_kwargs:
+  output_dir: ${base_dataset_dir}
+  tile_size: ${tile_size}
+  fields_to_avoid: ["polygons"]
+  classes_to_avoid: ${object_target_classes}
+
+# parameters for the base image evaluator
+# this module is responsable to skip the images 
+# that are not suitable for the base dataset
+base_evaluator_kwargs:
+  black_threshold: 10
+  black_area_max_coverage: 0.1
+  debug: True
 
 defaults:
   - hydra: severstal_overrides

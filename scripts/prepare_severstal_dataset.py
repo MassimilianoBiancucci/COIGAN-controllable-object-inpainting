@@ -4,18 +4,25 @@ import logging
 
 from omegaconf import OmegaConf
 
-from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDatasetBase
+# import the dataset loaders
+from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDatasetBase, JsonLineDataset
 from COIGAN.training.data.datasets_loaders.severstal_steel_defect import SeverstalSteelDefectDataset
 
+# import the dataset generators
 from COIGAN.training.data.dataset_generators.severstal_steel_defect_dataset_preprcessor import SeverstalSteelDefectPreprcessor
 from COIGAN.training.data.dataset_generators.object_dataset_generator import ObjectDatasetGenerator
+from COIGAN.training.data.dataset_generators.base_dataset_generator import BaseDatasetGenerator
 
+# import the dataset inspectors
 from COIGAN.training.data.dataset_inspectors.jsonl_dataset_inspector import JsonLineDatasetInspector
 from COIGAN.training.data.dataset_inspectors.jsonl_mask_dataset_inspector import JsonLineMaskDatasetInspector
 
+# import the dataset splitters
 from COIGAN.training.data.dataset_splitters.base_splitter import BaseSplitter
 from COIGAN.training.data.dataset_splitters.fair_splitter import FairSplitter
 
+# import the image evaluators
+from COIGAN.training.data.image_evaluators.severstal_base_evaluator import SeverstalBaseEvaluator
 
 # setting up the logger and enable warnings
 LOGGER = logging.getLogger(__name__)
@@ -327,6 +334,51 @@ def create_object_datasets_reports(config: OmegaConf):
         inspector.generate_graphs()
 
 
+def create_base_dataset(config: OmegaConf):
+    """
+        Create the base dataset to train the stylegan model
+    """
+    if config.force_base_dataset_generator:
+        LOGGER.warning("Force base dataset generator flag is set, deletting the base dataset...")
+        if os.path.exists(config.base_dataset_dir):
+            os.system(f"rm -r {config.base_dataset_dir}")
+
+    elif os.path.exists(config.base_dataset_dir):
+        # checking if the base dataset is empty
+        if len(os.listdir(os.path.join(config.base_dataset_dir, "data"))) == 0:
+            LOGGER.info("The base dataset is empty! deleting it...")
+            os.system(f"rm -r {config.base_dataset_dir}")
+        else:
+            LOGGER.info("The base dataset is already created! skipping the base dataset creation step...")
+            return
+
+    # load the input dataset
+    input_dataset = JsonLineDataset(
+        image_folder_path =     os.path.join(config.train_set_dir, "data"),
+        metadata_file_path =    os.path.join(config.train_set_dir, "dataset.jsonl"),
+        index_file_path =       os.path.join(config.train_set_dir, "index"),
+        masks_fields =          ["polygons"],
+        classes =               config.object_target_classes,
+        size =                  config.original_tile_size,
+        binary =                config.binary
+    )
+    
+    # initialize the input dataset
+    input_dataset.on_worker_init()
+
+    # load the image evaluator
+    img_evaluator = SeverstalBaseEvaluator(
+        **config.base_evaluator_kwargs
+    )
+
+    LOGGER.info("Creating the base dataset to train the stylegan model...")
+    BaseDatasetGenerator(
+        input_dataset =     input_dataset,
+        image_dir=          os.path.join(config.train_set_dir, "data"),
+        img_evaluator=      img_evaluator,
+        **config.base_dataset_generator_kwargs
+    ).convert()
+
 
 @hydra.main(config_path='../configs/data_preparation', config_name='severstal_dataset_preparation.yaml')
 def main(config: OmegaConf):
@@ -372,7 +424,7 @@ def main(config: OmegaConf):
     create_object_datasets_reports(config)
 
     # 6 - create the none defected img dataset to train another stylegan, to generate new none defected images
-    
+    create_base_dataset(config)
 
 
 
