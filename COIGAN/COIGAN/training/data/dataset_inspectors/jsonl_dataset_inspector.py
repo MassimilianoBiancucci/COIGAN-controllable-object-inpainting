@@ -7,6 +7,7 @@ import logging
 
 from tqdm import tqdm
 from matplotlib import pyplot as plt
+from typing import Union, Tuple, List
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -18,7 +19,7 @@ class JsonLineDatasetInspector:
     def __init__(
         self,
         dataset_path: str,
-        fields_to_inspect: list[str],
+        fields_to_inspect: List[str],
         report_output_path: str = None,
         binary: bool = False,
     ):

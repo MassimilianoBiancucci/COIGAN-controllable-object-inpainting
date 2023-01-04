@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 from tqdm import tqdm
-from typing import Tuple, Union, Dict
+from typing import Tuple, Union, Dict, List
 
 LOGGER = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class JsonLineDatasetBase:
             return self._get_meta(idx)
 
 
-    def __getitem__(self, idx: Union[slice, int, list[int]]):
+    def __getitem__(self, idx: Union[slice, int, List[int]]):
         """
         Return the sample with the given index
         """
@@ -166,7 +166,7 @@ class JsonLineDatasetBase:
         self.jsonl.close()
 
 
-    def map_field_classes(self, excluded_fields: list[str] = ["img"]):
+    def map_field_classes(self, excluded_fields: List[str] = ["img"]):
         """
         Map the classes of a field to a list of classes.
         The classes are mapped to the index of the class in the list.
@@ -214,8 +214,8 @@ class JsonLineDatasetMasksOnly(JsonLineDatasetBase):
         self,
         metadata_file_path: str,
         index_file_path: str,
-        masks_fields: list[str],
-        classes: Union[list[str],None] = None,
+        masks_fields: List[str],
+        classes: Union[List[str],None] = None,
         size: Union[Tuple[int, int], int] = (256, 256),
         points_normalized: bool = False,
         binary: bool = False
@@ -453,8 +453,8 @@ class JsonLineDataset(JsonLineDatasetMasksOnly):
         image_folder_path: str,
         metadata_file_path: str,
         index_file_path: str,
-        masks_fields: list[str],
-        classes: Union[list[str],None] = None,
+        masks_fields: List[str],
+        classes: Union[List[str],None] = None,
         size: Union[Tuple[int, int], int] = (256, 256),
         points_normalized: bool = False,
         binary: bool = False

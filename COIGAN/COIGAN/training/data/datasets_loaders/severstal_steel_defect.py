@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import logging
 
-from typing import Union
+from typing import Union, List
 from matplotlib import pyplot as plt
 
 
@@ -25,7 +25,7 @@ class SeverstalSteelDefectDataset(object):
         dataset_path: str,
         mode: str = "all",
         format: str = "standard",
-        tile_size: Union[int, list[int]] = [256, 1600], # needed for "mask_only"
+        tile_size: Union[int, List[int]] = [256, 1600], # needed for "mask_only"
         target_classes: list = ["1", "2", "3", "4"], # defect classes to load, in the given order
     ):
         """

@@ -30,7 +30,7 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         self,
         raw_dataset: SeverstalSteelDefectDataset,
         output_dir: str,
-        tile_size: Union[int, Tuple[int, int], list[int], ListConfig],
+        tile_size: Union[int, Tuple[int, int], List[int], ListConfig],
         dump_every: int = 1000,
         binary: bool = True,
         n_workers: int = 1,

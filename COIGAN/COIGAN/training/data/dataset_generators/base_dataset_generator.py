@@ -6,7 +6,7 @@ import cv2
 import logging
 
 from tqdm import tqdm
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 from omegaconf.listconfig import ListConfig
 
 from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDataset
@@ -32,8 +32,8 @@ class BaseDatasetGenerator:
         output_dir: str,
         tile_size: Union[int, Tuple[int, int]],
         img_evaluator: ImageEvaluatorBase,
-        fields_to_avoid: list[str],
-        classes_to_avoid: list[str]
+        fields_to_avoid: List[str],
+        classes_to_avoid: List[str]
     ):
 
         self.input_dataset = input_dataset
@@ -102,7 +102,7 @@ class BaseDatasetGenerator:
             
 
     @staticmethod
-    def _generate_tiles(image: np.ndarray, tile_size: list[int]) -> list[np.ndarray]:
+    def _generate_tiles(image: np.ndarray, tile_size: List[int]) -> List[np.ndarray]:
 
         """
             Split the image and the masks in tiles.

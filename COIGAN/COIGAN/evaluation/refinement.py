@@ -15,6 +15,7 @@ from COIGAN.modules.pix2pixhd import ResnetBlock
 
 from tqdm import tqdm
 
+from typing import List
 
 def _pyrdown(im : torch.Tensor, downsize : tuple=None):
     """downscale the image"""
@@ -86,7 +87,7 @@ def _l1_loss(
 def _infer(
     image : torch.Tensor, mask : torch.Tensor, 
     forward_front : nn.Module, forward_rears : nn.Module, 
-    ref_lower_res : torch.Tensor, orig_shape : tuple, devices : list, 
+    ref_lower_res : torch.Tensor, orig_shape : tuple, devices : List, 
     scale_ind : int, n_iters : int=15, lr : float=0.002):
     """Performs inference with refinement at a given scale.
 

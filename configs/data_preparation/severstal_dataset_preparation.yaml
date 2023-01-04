@@ -5,7 +5,9 @@
 dataset_name: test_1
 
 # Change this to your own path of the COIGAN-controllable-object-inpainting repo
-repo_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
+#repo_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
+repo_dir: /home/max/thesis/COIGAN-controllable-object-inpainting
+
 
 # principal dataset folder, where are placed all the varsion of the dataset
 dataset_dir: ${repo_dir}/datasets/severstal_steel_defect_dataset

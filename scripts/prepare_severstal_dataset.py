@@ -91,6 +91,13 @@ def download_and_extract_severstal_dataset(config: OmegaConf):
         if not os.path.exists(config.zip_file):
             LOGGER.info(f"Downloading the Steel Defect Dataset in {config.dataset_dir}")
             os.system(f"kaggle competitions download -c severstal-steel-defect-detection -p {config.dataset_dir}")
+            # check if the download is completed correctly
+            if not os.path.exists(config.zip_file):
+                LOGGER.error(f"Dataset can't be downloaded from kaggle!\n \
+                    double check the the kaggle api is installed and the kaggle.json file is present in the home directory, \n \
+                    if the problem persist downlod the dataset from kaggle and put the zip file in: \n \
+                    {config.dataset_dir}")
+                raise FileNotFoundError(f"Unable to download the dataset from kaggle in {config.dataset_dir}")
         else:
             LOGGER.info("The dataset is already downloaded")
 

@@ -6,6 +6,7 @@ import logging
 
 from tqdm import tqdm
 from matplotlib import pyplot as plt
+from typing import Union, Tuple, List
 
 from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDatasetBase
 
@@ -152,8 +153,8 @@ class JsonLineMaskDatasetInspector:
 
     @staticmethod
     def poly2mask(
-        polygon: list[list[list[int]]],
-        shape: tuple,
+        polygon: List[List[List[int]]],
+        shape: Tuple[int],
         normalized_points: bool = False,
         mask_value: int = 1,
     ) -> "dict[str, np.ndarray]":
