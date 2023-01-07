@@ -14,6 +14,11 @@ import hydra
 from omegaconf import OmegaConf
 
 from COIGAN.shape_training.trainers.stylegan2_trainer import stylegan2_trainer
+from COIGAN.training.data.datasets_loaders.shape_dataloader import ShapeObjectDataloader
+from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineMaskObjectdataset
+from COIGAN.training.data.augmentation.augmentor import Augmentor
+from COIGAN.training.data.augmentation.augmentation_presets import mask_inpainting_preset, imgs_inpainting_preset
+
 from COIGAN.utils.stylegan2_ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
@@ -48,7 +53,26 @@ def train(rank: int, world_size: int, config):
     if config.distributed:
         ddp_setup(rank, world_size)
 
-    trainer = stylegan2_trainer(rank, config)
+    # load the dataset
+    augmentor = Augmentor(
+        transforms=mask_inpainting_preset,
+        only_imgs_transforms=imgs_inpainting_preset
+    )
+
+    masks_dataset = JsonLineMaskObjectdataset(
+        config.data_root_dir,
+        binary = config.binary,
+        augmentor=augmentor
+    )
+
+    dataset = ShapeObjectDataloader(
+        input_dataset = masks_dataset,
+        sample_shapes=config.sample_shapes,
+        strategy=config.strategy,
+        out_channels=config.channels
+    )
+
+    trainer = stylegan2_trainer(rank, config, dataset)
     trainer.train()
 
 

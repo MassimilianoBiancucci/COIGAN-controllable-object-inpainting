@@ -1,13 +1,11 @@
 # @package _group_
 
-conf_name: test_shape_train
+conf_name: object_0_shape_train
 run_name: ${conf_name}_${now:%d-%m-%Y_%H-%M-%S}
 
 # paths ###################
 # location of the checkpoint to resume training from
-ckpt: null 
-# location of the dataset
-data_root_dir: /home/ubuntu/hdd/Datasets/tile_dataset_1_defect_masks_bruises_lmdb
+ckpt: null
 # location of the output directory (where checkpoints and log images will be saved)
 out_root_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting/experiments_shape
 # location of checkpoint dir
@@ -16,9 +14,15 @@ ckpt_dir: ${out_root_dir}/${run_name}/checkpoints
 sampl_dir: ${out_root_dir}/${run_name}/samples
 ###########################
 
+# dataset parameters
+data_root_dir: /home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/object_datasets/object_dataset_0
+binary: True
+sample_shapes: [1, 3]
+strategy: random
+
 # model parameters
-size: 128 # size of the output image
-channels: 3 # number of channels in the output image #NOTE: swagan has some bug with only 1 channel, but work smoothly with 3 channels
+size: 256 # size of the output image
+channels: 3 # number of channels in the output image #NOTE: swagan has some bug with only 1 channel, but work smoothly with 3 channels!
 channel_multiplier: 1 # scale the number of weights
 latent: 512 # size of the latent vector
 n_mlp: 8 # number of layers in the mapping network

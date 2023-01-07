@@ -33,7 +33,16 @@ from COIGAN.modules.stylegan2.swagan import Generator, Discriminator
 
 class stylegan2_trainer:
 
-    def __init__(self, rank, config: OmegaConf):
+    def __init__(self, rank, config: OmegaConf, dataset):
+        """ 
+            Initialize the trainer
+
+            Args:
+                rank (int): rank of the process
+                config (OmegaConf): configuration
+                dataset (torch.utils.data.Dataset): dataset
+            
+        """
 
         self.config = config
         self.device = rank
@@ -115,41 +124,13 @@ class stylegan2_trainer:
                 broadcast_buffers=False,
             )
 
-        # define the std transformations
-        preparation_transforms = [
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.ToTensor(),
-                #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True), 
-            ]
-
-        # define the augmentation transformations if the flag is set
-        if self.config.augment:
-            transformations = [
-                *preparation_transforms,
-                *augmentation_presets[self.config.augmentation_preset]
-            ]
-        else:
-            transformations = preparation_transforms
-
-        transform = transforms.Compose([
-                *transformations
-            ] 
-        )
-
-        # load the dataset
-        dataset = MultiResolutionMasksDataset(
-                self.config.data_root_dir, 
-                transform, 
-                self.config.size
-            )
-
         # define the dataloader
         self.loader = data.DataLoader(
             dataset,
             batch_size=self.config.batch,
             sampler=data_sampler(dataset, shuffle=True, distributed=self.config.distributed),
             drop_last=True,
+            worker_init_fn=dataset.on_worker_init,
         )
 
         # initialize wandb
