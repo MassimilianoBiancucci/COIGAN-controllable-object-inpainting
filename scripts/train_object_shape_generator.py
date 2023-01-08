@@ -5,7 +5,7 @@ import os
 import sys
 import traceback
 
-os.environ["HYDRA_FULL_ERROR"] = "1"
+#os.environ["HYDRA_FULL_ERROR"] = "1"
 
 import torch
 import torch.multiprocessing as mp

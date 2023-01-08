@@ -1,0 +1,6 @@
+# @package _group_
+run:
+  dir: ${out_root_dir}/${run_name}
+sweep:
+  dir: ${hydra:run.dir}_sweep
+  subdir: ${hydra.job.num}

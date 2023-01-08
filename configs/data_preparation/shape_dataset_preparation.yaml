@@ -1,8 +1,0 @@
-
-path: /home/ubuntu/hdd/Datasets/tile_dataset_1_defect_masks/Bruise            # path to the imgs folder
-out_path: /home/ubuntu/hdd/Datasets/tile_dataset_1_defect_masks_bruises_lmdb  # path to the output folder (lmdb dataset)
-n_worker: 8 # number of workers
-size:       # sizes of the images
-  - 128 
-  - 256 
-resample: lanczos # resampling method

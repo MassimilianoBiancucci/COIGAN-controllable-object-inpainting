@@ -65,15 +65,23 @@ mask_inpainting_preset = dChoice(
     [
         #dVerticalFlip(p=0.5),
         #dHorizontalFlip(p=0.5),
-        dRotations(90, expand=True),
-        dAffine(degrees=0.0, translate=0.1, scale=(0.9, 1.1), shear=3.0),
+        dRotations(180, expand=True),
+        dAffine(degrees=0.0, translate=0.1, scale=(0.7, 1.2), shear=3.0),
     ],
-    [1, 2],
+    [0, 2],
 )
 
 """PRESEET OF TRANSFORMATIONS APPLICABLE ONLY TO IMAGES"""
 imgs_inpainting_preset = sNoOp()
 
+######################################################################
+### base gan augmentation presets
+
+base_imgs_preset = Compose([
+    RandomHorizontalFlip(p=0.5),
+    RandomHorizontalFlip(p=0.5),
+    ToTensor()
+])
 
 if __name__ == "__main__":
 

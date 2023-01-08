@@ -4,6 +4,7 @@ import pickle
 import torch
 from torch import distributed as dist
 from torch.utils import data
+from torch.utils.data.distributed import DistributedSampler
 
 
 def get_rank():
@@ -138,7 +139,7 @@ def ddp_setup(rank, world_size):
 
 def data_sampler(dataset, shuffle, distributed):
     if distributed:
-        return data.distributed.DistributedSampler(dataset, shuffle=shuffle)
+        return DistributedSampler(dataset, shuffle=shuffle)
 
     if shuffle:
         return data.RandomSampler(dataset)

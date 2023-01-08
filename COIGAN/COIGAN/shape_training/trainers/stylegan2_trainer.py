@@ -6,7 +6,8 @@ import torch
 from torch import nn, autograd, optim
 from torch.nn import functional as F
 from torch.utils import data
-from torchvision import transforms, utils
+from torchvision import utils
+from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 
 from omegaconf import OmegaConf, read_write
@@ -16,9 +17,6 @@ try:
 
 except ImportError:
     wandb = None
-
-from COIGAN.shape_training.data.augmentation_presets import augmentation_presets
-from COIGAN.shape_training.data.masks_dataset import MultiResolutionMasksDataset
 
 from COIGAN.utils.stylegan2_ddp_utils import (
     get_rank,
@@ -124,13 +122,20 @@ class stylegan2_trainer:
                 broadcast_buffers=False,
             )
 
+        # check if the dataset object has the method on_worker_init
+        # if so, use it to initialize the workers
+        worker_init_fn = None
+        if hasattr(dataset, "on_worker_init"):
+            worker_init_fn = dataset.on_worker_init
+
         # define the dataloader
         self.loader = data.DataLoader(
             dataset,
             batch_size=self.config.batch,
             sampler=data_sampler(dataset, shuffle=True, distributed=self.config.distributed),
             drop_last=True,
-            worker_init_fn=dataset.on_worker_init,
+            num_workers=self.config.num_workers,
+            worker_init_fn=worker_init_fn
         )
 
         # initialize wandb
@@ -180,6 +185,11 @@ class stylegan2_trainer:
 
         sample_z = torch.randn(self.config.n_sample, self.config.latent, device=self.device)
 
+        # if the dataset is ImageFolder, the first element of the tuple are the images
+        imgFolderDs = False
+        if isinstance(self.loader.dataset, ImageFolder):
+            imgFolderDs = True
+
         for idx in pbar:
             i = idx + self.config.start_iter
 
@@ -190,8 +200,12 @@ class stylegan2_trainer:
 
             real_img = next(loader)
 
+            # if the dataset is ImageFolder, the first element of the tuple are the images
+            if imgFolderDs:
+                real_img = real_img[0]
+
             #DEBUG
-            one_img = real_img[0]
+            #one_img = real_img[0]
             real_img = real_img.to(self.device)
 
             self.requires_grad(self.generator, False)

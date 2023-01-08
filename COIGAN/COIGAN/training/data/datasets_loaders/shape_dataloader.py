@@ -5,6 +5,7 @@ import random
 import logging
 
 from typing import Tuple, Union, Dict, List
+from omegaconf import ListConfig
 
 from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineMaskObjectdataset
 
@@ -24,7 +25,7 @@ class ShapeObjectDataloader:
         self,
         input_dataset: JsonLineMaskObjectdataset,
         sample_shapes: List[int] = [1, 3],
-        tile_size: Union[int, List[int], Tuple[int]] = 256,
+        tile_size: Union[int, List[int], Tuple[int], ListConfig] = 256,
         strategy: str = "random",
         out_channels: int = 1,
         seed: int = 42,
@@ -58,6 +59,8 @@ class ShapeObjectDataloader:
 
         if isinstance(sample_shapes, (list, tuple)):
             self.sample_shapes = sample_shapes
+        elif isinstance(sample_shapes, ListConfig):
+            self.sample_shapes = [shape for shape in sample_shapes]
         elif isinstance(sample_shapes, int):
             self.sample_shapes = [0, sample_shapes]
         else:
@@ -90,7 +93,7 @@ class ShapeObjectDataloader:
         self.regenerate_random_idxs()
 
 
-    def on_worker_init(self):
+    def on_worker_init(self,  *args, **kwargs):
         """
             Init method for the workers.
         """
