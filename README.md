@@ -22,7 +22,7 @@ Now you need to retrive the username and the API-KEY and follow one of the follo
     ```
 - **option 2**: You can setup a json file in the kaggle api files folder
     ```yaml
-    /home/ubuntu/.kaggle/kaggle.json
+    /home/<username>/.kaggle/kaggle.json
     ```
     in the above file you need to add the user name and the API_KEY this way
     ```json
@@ -33,7 +33,7 @@ Now you need to retrive the username and the API-KEY and follow one of the follo
     ```
 - **option 3**: You can download the zip file by yourself at the [the challenge page](https://www.kaggle.com/competitions/severstal-steel-defect-detection) and put it in the folder: 
     ```yaml
-    /home/ubuntu/COIGAN-controllable-object-inpainting/data/severstal-steel-defect-detection
+    /<your_path>/COIGAN-controllable-object-inpainting/data/severstal-steel-defect-detection
     ```
 
 If you have any trouble with the kaggle api setup, refer to this link where the procedure is explained in detail: [Kaggle api repo](https://github.com/Kaggle/kaggle-api) or follow the option 3.

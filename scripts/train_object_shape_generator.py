@@ -2,10 +2,8 @@
 
 import logging
 import os
-import sys
-import traceback
 
-#os.environ["HYDRA_FULL_ERROR"] = "1"
+os.environ["HYDRA_FULL_ERROR"] = "1"
 
 import torch
 import torch.multiprocessing as mp
@@ -19,7 +17,7 @@ from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineM
 from COIGAN.training.data.augmentation.augmentor import Augmentor
 from COIGAN.training.data.augmentation.augmentation_presets import mask_inpainting_preset, imgs_inpainting_preset
 
-from COIGAN.utils.stylegan2_ddp_utils import ddp_setup
+from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 

@@ -18,7 +18,7 @@ try:
 except ImportError:
     wandb = None
 
-from COIGAN.utils.stylegan2_ddp_utils import (
+from COIGAN.utils.ddp_utils import (
     get_rank,
     reduce_loss_dict,
     reduce_sum,
@@ -59,6 +59,7 @@ class stylegan2_trainer:
             input_channels=self.config.channels
         ).to(self.device)
 
+        # perche un g_ema in ogni thread invece di tenerene uno solo nel primo thread?
         self.g_ema = Generator(
             self.config.size, 
             self.config.latent, 
@@ -180,7 +181,8 @@ class stylegan2_trainer:
             self.g_module = self.generator
             self.d_module = self.discriminator
 
-        accum = 0.5 ** (32 / (10 * 1000))
+        # exponential moving average of the generator weights
+        accum = 0.5 ** (32 / (10 * 1000)) # = 0.9977843871
         r_t_stat = 0
 
         sample_z = torch.randn(self.config.n_sample, self.config.latent, device=self.device)
@@ -198,6 +200,7 @@ class stylegan2_trainer:
 
                 break
 
+            # get the data
             real_img = next(loader)
 
             # if the dataset is ImageFolder, the first element of the tuple are the images
@@ -208,6 +211,7 @@ class stylegan2_trainer:
             #one_img = real_img[0]
             real_img = real_img.to(self.device)
 
+            # train the discriminator
             self.requires_grad(self.generator, False)
             self.requires_grad(self.discriminator, True)
 
@@ -218,18 +222,21 @@ class stylegan2_trainer:
 
             fake_pred = self.discriminator(fake_img)
             real_pred = self.discriminator(real_img_aug)
+
+            # calculate the discriminator loss
             d_loss = self.d_logistic_loss(real_pred, fake_pred)
 
             loss_dict["d"] = d_loss
             loss_dict["real_score"] = real_pred.mean()
             loss_dict["fake_score"] = fake_pred.mean()
 
+            # update the discriminator
             self.discriminator.zero_grad()
             d_loss.backward()
             self.d_optim.step()
 
+            # apply the discriminator regularizations
             d_regularize = i % self.config.d_reg_every == 0
-
             if d_regularize:
                 real_img.requires_grad = True
 
@@ -245,6 +252,7 @@ class stylegan2_trainer:
 
             loss_dict["r1"] = r1_loss
 
+            # train the generator
             self.requires_grad(self.generator, True)
             self.requires_grad(self.discriminator, False)
 
@@ -252,6 +260,8 @@ class stylegan2_trainer:
             fake_img, _ = self.generator(noise)
 
             fake_pred = self.discriminator(fake_img)
+
+            # calculate the generator loss
             g_loss = self.g_nonsaturating_loss(fake_pred)
 
             loss_dict["g"] = g_loss
@@ -260,6 +270,7 @@ class stylegan2_trainer:
             g_loss.backward()
             self.g_optim.step()
 
+            # apply the generator regularizations
             g_regularize = i % self.config.g_reg_every == 0
 
             if g_regularize:

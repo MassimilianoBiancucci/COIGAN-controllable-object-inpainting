@@ -2,73 +2,56 @@
 
 import logging
 import os
-import sys
-import traceback
+
+os.environ["HYDRA_FULL_ERROR"] = "1"
+
+import torch
+import torch.multiprocessing as mp
 
 import hydra
 from omegaconf import OmegaConf
 
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.loggers import WandbLogger
+from COIGAN.training.data.datasets_loaders import make_dataloader
+from COIGAN.training.trainers.coigan_trainer import COIGANtrainer
 
-from COIGAN.utils.ddp_utils import handle_ddp_parent_process, handle_ddp_subprocess
-from COIGAN.utils.train_utils import handle_deterministic_config
-from COIGAN.training.trainers import make_training_model
+from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 
-@handle_ddp_subprocess()
-@hydra.main(config_path='..configs/training', config_name='test_train.yaml')
+@hydra.main(config_path="../configs/", config_name=".yaml")
 def main(config: OmegaConf):
+    
+    #resolve the config inplace
+    OmegaConf.resolve(config)
 
-    try:
+    LOGGER.info(f'Config: {OmegaConf.to_yaml(config)}')
 
-        # resolve the config
-        OmegaConf.resolve(config)
+    OmegaConf.save(config, os.path.join(os.getcwd(), 'config.yaml')) # saving the configs to config.hydra.run.dir
+    
+    # create the checkpoints dirls
+    os.makedirs(config.ckpt_dir, exist_ok=True)
+    os.makedirs(config.sampl_dir, exist_ok=True)
 
-        LOGGER.info(f'Config: {OmegaConf.to_yaml(config)}')
+    if config.distributed:
+        world_size = torch.cuda.device_count()
+        mp.spawn(train, args=(world_size, config), nprocs=world_size)
 
-        # check if that one is the 
-        is_ddp_subprocess = handle_ddp_parent_process()
+    else:
+        train(0, 1, config)
+    
 
-        # set deterministic process
-        is_deterministic = handle_deterministic_config(config)
+def train(rank: int, world_size: int, config):
 
-        if not is_ddp_subprocess:
-            LOGGER.info(f"training configs: \n{config.pretty()}")
-            OmegaConf.save(config, os.path.join(os.getcwd(), 'config.yaml')) # saving the configs to config.hydra.run.dir
+    torch.cuda.set_device(rank)
 
-        # create the checkpoints dir
-        checkpoints_dir = os.path.join(os.getcwd(), "checkpoints")
-        os.makedirs(checkpoints_dir, exist_ok=True)
+    if config.distributed:
+        ddp_setup(rank, world_size)
 
-        # create the model checkpoint callback
-        checkpointer = ModelCheckpoint(dirpath=checkpoints_dir, **config.trainer.checkpoint_kwargs)
-        
-        # create the wandb logger
-        logger = WandbLogger(**config.wandb)
+    dataset = make_dataloader(config.data, rank=rank)
 
-        #create the model
-        model = make_training_model(config)
-
-        # create the trainer
-        trainer = Trainer(
-            callbacks=checkpointer,
-            logger=logger,
-            default_root_dir=os.getcwd(),
-            **config.trainer.kwargs
-        )
-
-        # train the model
-        trainer.fit(model)
-
-    except KeyboardInterrupt:
-        LOGGER.warning('Interrupted by user')
-    except Exception as ex:
-        LOGGER.critical(f'Training failed due to {ex}:\n{traceback.format_exc()}')
-        sys.exit(1)
+    trainer = COIGANtrainer(rank, config, dataset)
+    trainer.train()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

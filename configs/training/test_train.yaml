@@ -3,40 +3,36 @@
 conf_name: ${hydra:job.config_name}
 run_name: ${hydra:job.config_name}_${now:%d-%m-%Y_%H-%M-%S}
 
-training_model:
-  kind: default
-  visualize_each_iters: 1000
-  concat_mask: true
-  store_discr_outputs_for_vis: true
+# training variables
+checkpoint: null
+start_iter: 0
+max_iter: 800000
 
-losses:
-  l1:
-    weight_missing: 0
-    weight_known: 10
-  perceptual:
-    weight: 0
-  adversarial:
-    kind: r1
-    weight: 10
-    gp_coef: 0.001
-    mask_as_fake_target: true
-    allow_scale_mask: true
-  feature_matching:
-    weight: 100
-  resnet_pl:
-    weight: 30
-    weights_path: ${env:TORCH_HOME}
+batch_size: 8 # batch size for each training process
+num_workers: 4 # dataloader workers
+
+################################################
+distributed: false # enable distributed training
+################################################
+
+visualize_each_iters: 1000
+
+concat_mask: true
+store_discr_outputs_for_vis: true
+
 
 wandb:
   project: COIGAN
   entity: deep_learning_team
+  mode: online
 
 defaults:
-  - location: defect_dataset_local
-  - data: defect_dataset_test
+  - location: default_locations
+  - data: severstal_dataset
   - generator: ffc_resnet_075
-  - discriminator: pix2pixhd_nlayer
+  - discriminator: swagan_discriminator
   - optimizers: default_optimizers
+  - losses: default_losses
   - visualizer: default_visualizer
   - evaluator: default_evaluator
   - trainer: any_gpu_ddp

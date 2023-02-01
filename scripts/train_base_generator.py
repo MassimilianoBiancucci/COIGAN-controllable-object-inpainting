@@ -17,7 +17,7 @@ from omegaconf import OmegaConf
 from COIGAN.shape_training.trainers.stylegan2_trainer import stylegan2_trainer
 from COIGAN.training.data.augmentation.augmentation_presets import base_imgs_preset
 
-from COIGAN.utils.stylegan2_ddp_utils import ddp_setup
+from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def main(config: OmegaConf):
     LOGGER.info(f'Config: {OmegaConf.to_yaml(config)}')
 
     OmegaConf.save(config, os.path.join(os.getcwd(), 'config.yaml')) # saving the configs to config.hydra.run.dir
-
+    
     # create the checkpoints dirls
     os.makedirs(config.ckpt_dir, exist_ok=True)
     os.makedirs(config.sampl_dir, exist_ok=True)
@@ -47,7 +47,7 @@ def main(config: OmegaConf):
 def train(rank: int, world_size: int, config):
     
     torch.cuda.set_device(rank)
-
+    
     if config.distributed:
         ddp_setup(rank, world_size)
 

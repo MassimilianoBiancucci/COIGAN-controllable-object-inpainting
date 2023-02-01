@@ -1,0 +1,57 @@
+# @package _group_
+
+dataset_name: severstal-steel-defect # name of the dataset
+dataset_location: /home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1 # dataset path
+
+out_size: 256 # size of dataset
+batch_size: ${batch_size} # batch size for each training process
+num_workers: ${num_workers} # dataloader workers
+dataloader_shuffle: false # enabling the dataset shuffling at dataloader level
+seed: 42 # seed for the dataset shuffling
+
+kind: ${data.dataset_name}
+
+augmentation_sets: 
+  mask_aug: mask_inpainting_preset
+  img_aug: imgs_inpainting_preset
+
+# position of the base dataset
+base_dataset_kwargs:
+  root: ${location.data_root_dir}/base_dataset
+
+# objects datasets parameters
+object_datasets:
+  # position of the object datasets and name of each subfolder (class)
+  base_path: ${data.dataset_location}/object_datasets
+  names: 
+    - object_dataset_0
+    - object_dataset_1
+    - object_dataset_2
+    - object_dataset_3
+  classes:
+    - object_0
+    - defect_1
+    - defect_2
+    - defect_3
+
+  binary: true # specify if the datasets are binary format or stright json
+
+# shape dataloader parameters
+shape_dataloader_kwargs:
+  sample_shapes: [0, 1, 2, 3]
+  shape_probs: [0.2, 0.5, 0.2, 0.1]
+
+# object dataloader parameters
+object_dataloader_kwargs:
+  sample_defects: [0, 1, 2, 3]
+  defects_probs: [0.2, 0.5, 0.2, 0.1]
+
+coigan_dataset_kwargs:
+  allow_overlap: false # allow overlap between objects in input masks and on the gt objects
+  shuffle: true
+
+torch_dataloader_kwargs:
+  batch_size: ${data.batch_size}
+  num_workers: ${data.num_workers}
+  pin_memory: true
+  drop_last: true

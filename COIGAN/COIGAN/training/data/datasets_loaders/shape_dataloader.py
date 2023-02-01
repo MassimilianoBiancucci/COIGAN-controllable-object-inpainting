@@ -1,15 +1,15 @@
 import numpy as np
 import torch
-import random
+from random import Random
 
 import logging
 
-from typing import Tuple, Union, Dict, List
+from typing import Tuple, Union, Dict, List, Optional
 from omegaconf import ListConfig
 
-from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineMaskObjectdataset
+from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineMaskObjectDataset
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class ShapeObjectDataloader:
@@ -23,12 +23,12 @@ class ShapeObjectDataloader:
 
     def __init__(
         self,
-        input_dataset: JsonLineMaskObjectdataset,
-        sample_shapes: List[int] = [1, 3],
+        input_dataset: JsonLineMaskObjectDataset,
+        sample_shapes: Union[int, List[int], Tuple[int]] = [0, 1, 2, 3],
+        shape_probs: Optional[List[float]] = None,
         tile_size: Union[int, List[int], Tuple[int], ListConfig] = 256,
-        strategy: str = "random",
         out_channels: int = 1,
-        seed: int = 42,
+        seed: int = 42
     ):
 
         """
@@ -37,16 +37,16 @@ class ShapeObjectDataloader:
             Args:
                 input_dataset: dataset object that contains the input data, and return the mask as normalized torch.Tensor.
 
-                sample_shapes (Union[int, List[int], Tuple[int]]): number of shapes to mount in the image.
-                    - int: the same number of shapes is used for each sample.
-                    - List[int, int]: the number of shapes is sampled from a uniform distribution between the two values.
+                sample_shapes (Union[List[int], Tuple[int]]): number of shapes to mount in the image.
+                    - List[int]: the number of shapes is sampled from the numbers passed in the list.
+                    - Tuple[int]: the number of shapes is sampled from the range of numbers passed in the tuple.
+                    - int: the number of shapes is sampled from the range [0, sample_shapes].
+
+                shapes_probs (Optional[List[float]]): probability of each shape to be sampled.
+                    - List[float]: the probability of each shape to be sampled is passed in the list. Must match the number of shapes.
+                    - None: the probability of each shape is equal to 1 / number of shapes. (default: None)
 
                 tile_size: size of the tile where the shapes are mounted.
-
-                strategy: strategy to use to mount the shapes in the image.
-                    - "random": indipendent from the idx passed to the __getitem__ method, the shapes are retrived from the dataset randomly,
-                                with a random position.
-                    - "single": the shapes are retrived from the dataset correspondignly to the idx passed to the __getitem__ method.
                 
                 out_channels: number of channels of the output mask.
                 seed: seed to use for the random number generator.
@@ -62,34 +62,31 @@ class ShapeObjectDataloader:
         elif isinstance(sample_shapes, ListConfig):
             self.sample_shapes = [shape for shape in sample_shapes]
         elif isinstance(sample_shapes, int):
-            self.sample_shapes = [0, sample_shapes]
+            self.sample_shapes = list(range(sample_shapes+1))
         else:
-            raise ValueError("sample_shapes must be a list or a tuple of 2 int values, or at least an int value.")
+            raise ValueError("sample_shapes must be a list or a tuple of int values.")
 
-        # check the elements passed as num_shapes are correctly defined
-        if len(self.sample_shapes) != 2 or \
-            not isinstance(self.sample_shapes[0], int) or \
-            not isinstance(self.sample_shapes[1], int) or \
-            self.sample_shapes[0] > self.sample_shapes[1] or \
-            self.sample_shapes[0] < 0 or \
-            self.sample_shapes[1] < 0:
-            raise ValueError("sample_shapes must be a list or a tuple of 2 int values, that define a non-null interval of positive values.")
-
-        self.sample_shapes = list(range(self.sample_shapes[0], self.sample_shapes[1] + 1))
+        # load the shapes probabilities
+        if shape_probs is None:
+            self.shapes_probs = [1 / len(self.sample_shapes)] * len(self.sample_shapes)
+        else:
+            if len(shape_probs) != len(self.sample_shapes):
+                raise ValueError(f"shape_probs must have the same length of sample_shapes = {len(self.sample_shapes)}.")
+            elif np.sum(shape_probs) != 1:
+                LOGGER.warning("The sum of the shape_probs must be equal to 1. Normalizing the probabilities...")
+                probs_sum = np.sum(shape_probs)
+                shape_probs = [prob / probs_sum for prob in shape_probs]
+                LOGGER.info(f"New shape_probs: {shape_probs}")
+            self.shapes_probs = shape_probs
 
         self.tile_size = tile_size if isinstance(tile_size, (list, tuple)) else (tile_size, tile_size)
-
-        if strategy in ["random", "single"]:
-            self.strategy = strategy
-        else:
-            raise ValueError("strategy must be 'random' or 'single'.")
 
         # set the number of channels 
         self.out_channels = out_channels
 
         # random index variables
         # variables used to retrive shapes from the dataset with the random strategy
-        random.seed(seed)
+        self.random = Random(seed)
         self.regenerate_random_idxs()
 
 
@@ -107,10 +104,10 @@ class ShapeObjectDataloader:
         self.random_idxs = list(range(len(self.input_dataset)))
 
         if shuffle:
-            random.shuffle(self.random_idxs)
+            self.random.shuffle(self.random_idxs)
     
 
-    def generate_random_sample(self):
+    def generate_random_sample(self, avoid_mask: Optional[torch.Tensor] = None):
         """
             Generate a random sample of the dataset.
         """
@@ -118,7 +115,8 @@ class ShapeObjectDataloader:
         tile = torch.zeros(self.tile_size, dtype=torch.float32)
 
         # sample the number of shapes to place in the image
-        num_shapes = random.choice(self.sample_shapes)
+        # considering the shapes probabilities
+        num_shapes = self.random.choices(self.sample_shapes, weights=self.shapes_probs)[0]
         
         # extract from random_idxs num_shapes random indexes, removing it from the list
         if len(self.random_idxs) < num_shapes:
@@ -130,43 +128,37 @@ class ShapeObjectDataloader:
 
         # mount the shapes in the tile
         for i in range(num_shapes):
-            tile = self.apply_shape(tile, shapes[i].squeeze(0))
+            tile, avoid_mask = self.apply_shape(
+                tile, 
+                shapes[i].squeeze(0),
+                self.random,
+                avoid_mask=avoid_mask
+            )
         
-        return tile
-
-
-    def generate_simple_sample(self, idx):
-        """
-            Generate a sample of the dataset using the idx passed to the __getitem__ method.
-        """
-        pass
+        if avoid_mask is None:
+            return tile
+        else:
+            return tile, avoid_mask
 
 
     def __getitem__(self, idx):
-            
         """
             Get the sample at the index idx.
         """
-
-        if self.strategy == "random":
-            mask = self.generate_random_sample()
-
-        elif self.strategy == "single":
-            mask = self.generate_simple_sample(idx)
+        mask = self.generate_random_sample()
 
         if self.out_channels > 1:
             mask = torch.stack([mask] * self.out_channels, dim=0)
 
         return mask
-    
+
 
     def __iter__(self):
         """
             Iterator of the dataset.
         """
-
-        for i in range(len(self)):
-            yield self.__getitem__(i)
+        while True:
+            yield self.__getitem__(0)
 
 
     def __len__(self):
@@ -174,7 +166,12 @@ class ShapeObjectDataloader:
 
 
     @staticmethod
-    def apply_shape(mask: torch.Tensor, shape: torch.Tensor):
+    def apply_shape(
+        mask: torch.Tensor, 
+        shape: torch.Tensor,
+        random: Random,
+        avoid_mask: torch.Tensor = None
+    ):
         """
             Apply the shape to the mask.
 
@@ -182,10 +179,20 @@ class ShapeObjectDataloader:
             without overlapping the shapes, and try to reduce the amount of shape placed outside the mask.
 
             Args:
-                mask: mask where the shape is applied.
+                mask: mask where the shape is applied. contain other shapes already placed from the same class.
                 shape: shape to apply to the mask.
+                avoid_mask: reference mask, signal where the shape can't be placed, because there are other shapes from ther. Default: None
+            
+            NOTE: if the avoid_mask is not None, the shape will be placed only where the avoid_mask is 0,
+                otherwise the mask will be used for the check.
+            
+            Returns:
+                mask: the mask with the shape applied.
+                avoid_mask: the avoid_mask with the shape applied.
         """
-        
+
+        check_mask = mask if avoid_mask is None else avoid_mask
+
         # retrice the shapes of the mask and the shape
         mh, mw = mask.shape # mask dims
         sh, sw = shape.shape # shape dims
@@ -216,33 +223,59 @@ class ShapeObjectDataloader:
                 che = min(th + sh, mh) # crop height end
                 cwe = min(tw + sw, mw) # crop width end
 
-                if torch.sum(mask[ch:che, cw:cwe]) == 0:
-                    # extract the shape that will be inside the mask
-                    sch = 0 if ch == th else -th
-                    sche = sh if che == th + sh else che - th                
-                    scw = 0 if cw == tw else -tw
-                    scwe = sw if cwe == tw + sw else cwe - tw
+                # extract the shape that will be inside the mask
+                sch = 0 if ch == th else -th
+                sche = sh if che == th + sh else che - th                
+                scw = 0 if cw == tw else -tw
+                scwe = sw if cwe == tw + sw else cwe - tw
 
-                    cshape = shape[sch:sche, scw:scwe]
+                cshape = shape[sch:sche, scw:scwe]
 
+                if torch.sum(
+                    torch.bitwise_and( # return the intersection btween the check_mask and the shape mask
+                        check_mask[ch:che, cw:cwe].bool(),
+                        cshape.bool()
+                    )
+                ) == 0:
+                    
                     # place the shape in the mask
                     mask[ch:che, cw:cwe] = cshape
 
-                    return mask.contiguous()
+                    if avoid_mask is not None:
+                        avoid_mask[ch:che, cw:cwe][cshape > 0] = 1.0
+                    else:
+                        avoid_mask = mask.clone()
+
+                    return mask, avoid_mask
                 
                 if i == n_try - 1:
-                    # if the shape is not placed, and is the last try, place it anyway
-                    # extract the shape that will be inside the mask
-                    sch = 0 if ch == th else -th
-                    sche = sh if che == th + sh else che - th                
-                    scw = 0 if cw == tw else -tw
-                    scwe = sw if cwe == tw + sw else cwe - tw
+                    # the last try, check if the shape overlap the avoid_mask, in that case
+                    # the shape overlap other classes, so don't place it.
+                    
                     cshape = shape[sch:sche, scw:scwe]
 
-                    # set the mask values to 1 where the shape is placed
-                    mask[ch:che, cw:cwe][cshape > 0] = 1.0
+                    if avoid_mask is None or torch.sum(
+                        torch.bitwise_and(
+                            torch.bitwise_and( # return the avoid_mask with the current mask subtracted
+                                avoid_mask[ch:che, cw:cwe].bool(),
+                                torch.bitwise_not(mask[ch:che, cw:cwe].bool())
+                            ),
+                            cshape.bool()
+                        )
+                    ) == 0:
 
-                    return mask.contiguous()
+                        apply_coords = cshape > 0
+
+                        # set the mask values to 1 where the shape is placed
+                        mask[ch:che, cw:cwe][apply_coords] = 1.0
+                    
+                        if avoid_mask is not None:
+                            avoid_mask[ch:che, cw:cwe][apply_coords] = 1.0
+                    
+                    if avoid_mask is None:
+                        avoid_mask = mask.clone()
+
+                    return mask, avoid_mask
         
         # if the shape fit in the mask, try to place it in a random position 
         else:
@@ -251,19 +284,45 @@ class ShapeObjectDataloader:
                 th = random.randint(0, mh - sh)
                 tw = random.randint(0, mw - sw)
 
-                if torch.sum(mask[th:th + sh, tw:tw + sw]) == 0:
-                    # place the shape in the mask
-                    mask[th:th + sh, tw:tw + sw] = shape
+                if torch.sum( # return the area of the intersection between the check_mask and the shape mask
+                    torch.bitwise_and( # return the intersection btween the check_mask and the shape mask
+                        check_mask[th:th + sh, tw:tw + sw].bool(),
+                        shape.bool()
+                    )
+                ) == 0:
 
-                    return mask.contiguous()
+                    # place the shape in the mask
+                    apply_coords = shape > 0
+                    mask[th:th + sh, tw:tw + sw][apply_coords] = 1.0
+
+                    if avoid_mask is not None:
+                        avoid_mask[th:th + sh, tw:tw + sw][apply_coords] = 1.0
+                    else:
+                        avoid_mask = mask.clone()
+
+                    return mask, avoid_mask
                 
                 if i == n_try - 1:
-                    # if the shape is not placed, and is the last try, place it anyway
-                    # set the mask values to 1 where the shape is placed
-                    mask[th:th + sh, tw:tw + sw][shape > 0] = 1.0
+                    #the last try, check if the shape overlap the, in that case
+                    # the shape overlap other classes, so don't place it.
+                    if avoid_mask is None or torch.sum(
+                        torch.bitwise_and( # return the overlap between the avoid_mask (without the current mask) and the shape that should be placed
+                            torch.bitwise_and( # return the avoid_mask with the current mask subtracted
+                                avoid_mask[th:th + sh, tw:tw + sw].bool(),
+                                torch.bitwise_not(mask[th:th + sh, tw:tw + sw].bool())
+                            ),
+                            shape.bool()
+                        )
+                    ) == 0:
+                        mask[th:th + sh, tw:tw + sw][shape > 0] = 1.0
 
-                    return mask.contiguous()
+                        if avoid_mask is not None:
+                            avoid_mask[th:th + sh, tw:tw + sw][shape > 0] = 1.0
 
+                    if avoid_mask is None:
+                        avoid_mask = mask.clone()
+
+                    return mask, avoid_mask
 
 
 #####################################################
@@ -307,7 +366,7 @@ if __name__ == "__main__":
         only_imgs_transforms=imgs_inpainting_preset
     )
 
-    masks_dataset = JsonLineMaskObjectdataset(
+    masks_dataset = JsonLineMaskObjectDataset(
         "/home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/object_datasets/object_dataset_0",
         binary = True,
         augmentor=augmentor
@@ -315,14 +374,13 @@ if __name__ == "__main__":
 
     shape_dataloader = ShapeObjectDataloader(
         input_dataset = masks_dataset,
-        sample_shapes=(1, 3),
-        strategy="random"
+        sample_shapes=(1, 3)
     )
 
     shape_dataloader.on_worker_init()
 
-    timeit(shape_dataloader)
-    #visualize(shape_dataloader)
+    #timeit(shape_dataloader)
+    visualize(shape_dataloader)
 
 
 

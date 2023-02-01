@@ -64,10 +64,19 @@ class JsonLineObjectDataset(JsonLineDatasetBase):
         )
 
 
-    def _get_sample(self, idx: int) -> Tuple[np.ndarray, Dict]:
+    def _get_sample(self, idx: int) -> \
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[torch.Tensor, torch.Tensor]]:
         """
         Return the sample with the given index
+
+        Args:
+            idx: index of the sample to return
+        
+        Returns:
+            img (np.ndarray or torch.Tensor): image of the object
+            mask (np.ndarray or torch.Tensor): mask of the object
         """
+
         metadata = self._get_metadata(idx)
         
         # load the image path
@@ -165,7 +174,7 @@ class JsonLineObjectDataset(JsonLineDatasetBase):
 
     
 
-class JsonLineMaskObjectdataset(JsonLineObjectDataset):
+class JsonLineMaskObjectDataset(JsonLineObjectDataset):
 
     """
         Extension of the JsonLineObjectDataset for datasets that load only

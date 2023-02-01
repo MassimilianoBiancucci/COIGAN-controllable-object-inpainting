@@ -1,0 +1,18 @@
+
+l1:
+  weight_missing: 0
+  weight_known: 10
+
+adversarial:
+  kind: r1
+  weight: 10
+  gp_coef: 0.001
+  mask_as_fake_target: true
+  allow_scale_mask: true
+
+feature_matching:
+  weight: 100
+
+resnet_pl:
+  weight: 30
+  weights_path: ${env:TORCH_HOME}

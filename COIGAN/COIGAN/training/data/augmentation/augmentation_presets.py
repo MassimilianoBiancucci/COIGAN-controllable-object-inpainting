@@ -83,6 +83,23 @@ base_imgs_preset = Compose([
     ToTensor()
 ])
 
+######################################################################
+### Dict mapping all the presets
+
+augmentation_presets_dict = {
+    "mask_preset_1": mask_preset_1,
+    "imgs_preset_1": imgs_preset_1,
+    "mask_defects_preset": mask_defects_preset,
+    "imgs_defects_preset": imgs_defects_preset,
+    "imgs_defects_preset_noop": imgs_defects_preset_noop,
+    "mask_inpainting_preset": mask_inpainting_preset,
+    "imgs_inpainting_preset": imgs_inpainting_preset,
+    "base_imgs_preset": base_imgs_preset,
+}
+
+
+######################################################################
+### DEBUG
 if __name__ == "__main__":
 
     # Test the augmentation presets

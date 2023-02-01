@@ -76,7 +76,6 @@ class BaseAdversarialLoss:
         return mask
 
 
-
 def make_r1_gp(discr_real_pred, real_batch):
     """
     Calculate R1 gradient penalty
@@ -96,7 +95,6 @@ def make_r1_gp(discr_real_pred, real_batch):
     real_batch.requires_grad = False
 
     return grad_penalty
-
 
 
 class NonSaturatingWithR1(BaseAdversarialLoss):

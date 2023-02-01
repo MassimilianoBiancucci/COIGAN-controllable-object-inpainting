@@ -7,6 +7,43 @@ import warnings
 LOGGER = logging.getLogger(__name__)
 
 
+def requires_grad(module, value=True):
+    """
+    Set requires_grad attribute of all parameters in module to value
+    """
+    for param in module.parameters():
+        param.requires_grad = value
+
+
+def accumulate(model1, model2, decay=0.999):
+    """
+    Used for the EMA model (Exponential Moving Average)
+    in certain cases the ema model have a better performance than the original model.
+    """
+    par1 = dict(model1.named_parameters())
+    par2 = dict(model2.named_parameters())
+
+    for k in par1.keys():
+        par1[k].data.mul_(decay).add_(par2[k].data, alpha=1 - decay)
+
+
+def make_optimizer(model, kind='adamw', **kwargs):
+
+    if kind == 'adam':
+        optimizer_class = torch.optim.Adam
+    elif kind == 'adamw':
+        optimizer_class = torch.optim.AdamW
+    else:
+        raise ValueError(f'Unknown optimizer kind {kind}')
+    return optimizer_class(model.parameters(), **kwargs)
+
+
+def sample_data(loader):
+        while True:
+            for batch in loader:
+                yield batch
+
+
 def check_and_warn_input_range(tensor, min_value, max_value, name):
     actual_min = tensor.min()
     actual_max = tensor.max()
@@ -33,11 +70,6 @@ def average_dicts(dict_list):
 
 def add_prefix_to_keys(dct, prefix):
     return {prefix + k: v for k, v in dct.items()}
-
-
-def set_requires_grad(module, value):
-    for param in module.parameters():
-        param.requires_grad = value
 
 
 def flatten_dict(dct):
