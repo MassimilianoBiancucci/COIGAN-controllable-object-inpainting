@@ -3,6 +3,7 @@ import logging
 from random import Random
 import torch
 from torchvision.datasets import ImageFolder
+from omegaconf import OmegaConf
 
 from typing import List, Tuple, Union, Dict
 
@@ -24,9 +25,11 @@ class CoiganSeverstalSteelDefectsDataset:
         shape_dataloaders: List[ShapeObjectDataloader],
         defect_dataloaders: List[ObjectDataloader],
         defect_classes: List[str],
+        mask_noise_generator_kwargs: OmegaConf = None,
         allow_overlap: bool = False,
         shuffle: bool = True,
-        seed: int = 42
+        seed: int = 42,
+        length: int = None
     ):
         """
         Init method of the CoiganSeverstalSteelDefectsDataset class.
@@ -40,10 +43,9 @@ class CoiganSeverstalSteelDefectsDataset:
                     and to train the discriminator to detect the real defects.
             
         The output of this dataset is a tuple containing the following elements:
-            - ["base"] : the original image in torch.Tensor format.
-            - ["masks"] : a torch.Tensor of masks, one channel for each type of defect.
-            - ["defects"] : a list of images, one for each type of defect.
-            - ["defects_union"] : a single image containing all the defects.
+            - ["gen_input"]: the input tensor of the generator, containing the base image and the input defects masks concatenated. shape: (3+n, H, W) where n is the number of defect classes.
+            - ["disc_input"]: the input tensor of the discriminator, containing the masked images of some defects of each class. shape: (3*n, H, W) where n is the number of defect classes.
+            - ["orig_masks"]: a tensor containing the original masks of the defects, without noise. shape: (n, H, W) where n is the number of defect classes.
         
         NOTE:
             - The dataset take as lenght the lenght of the base dataset.
@@ -54,9 +56,13 @@ class CoiganSeverstalSteelDefectsDataset:
             shape_dataloaders: a list of dataloaders, one for each type of defect.
             defect dataloaders: a list of dataloaders, one for each type of defect.
             defect_classes: a list of strings, one for each type of defect.
-            allow_defect_masks_overlap: specify if the defects masks can overlap between different classes or not.
+            mask_noise_generator: a function that takes as input a mask and return a noisy mask.
+                    if passed the getitem method will return a noisy mask in the gen_in field of the output, 
+                    and another field for the original masks.
+            allow_overlap: specify if the defects masks can overlap between different classes or not.
             shuffle: specify if the dataset should be shuffled or not.
             seed: seed used to shuffle the dataset.
+            lenght: specify the lenght of the dataset. If None, the lenght of the base dataset is used.
         """
 
         # check the input
@@ -242,12 +248,12 @@ class CoiganSeverstalSteelDefectsDataset:
         # Store the union of the defects
         #sample["defects_masks_union"] = union_defect
 
-        # Return the sample
-        return {
+        sample =  {
             "gen_input": torch.cat([base, *masks], dim=0).contiguous(),
-            "disc_input": torch.cat(defects, dim=0).contiguous(),
-            #"defects_masks": torch.cat(defects_maks, dim=0).contiguous()
+            "disc_input": torch.cat(defects, dim=0).contiguous()
         }
+
+        return sample
 
 
     def __getitem__(self, index: int) -> Dict[str, Union[torch.Tensor, List[torch.Tensor]]]:
@@ -417,8 +423,8 @@ if __name__ == "__main__":
     )
     coigan_dataloader.on_worker_init()
 
-    timeit(coigan_dataloader)
-    #visualize(coigan_dataloader)
+    #timeit(coigan_dataloader)
+    visualize(coigan_dataloader)
 
 
 

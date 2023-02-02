@@ -9,13 +9,14 @@ start_iter: 0
 max_iter: 800000
 
 batch_size: 8 # batch size for each training process
-num_workers: 4 # dataloader workers
+num_workers: 6 # dataloader workers
 
 ################################################
 distributed: false # enable distributed training
 ################################################
 
-visualize_each_iters: 1000
+log_interval: 1000 # steps interval between each output visualization
+checkpoint_interval: 10000 # steps interval between each checkpoint
 
 concat_mask: true
 store_discr_outputs_for_vis: true

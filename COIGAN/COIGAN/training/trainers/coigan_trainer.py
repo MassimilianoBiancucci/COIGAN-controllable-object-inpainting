@@ -133,16 +133,38 @@ class COIGANtrainer:
 
         self.generator.load_state_dict(ckpt["g"])
         self.discriminator.load_state_dict(ckpt["d"])
-        self.g_ema.load_state_dict(ckpt["g_ema"])
+        #self.g_ema.load_state_dict(ckpt["g_ema"])
 
         self.g_optim.load_state_dict(ckpt["g_optim"])
         self.d_optim.load_state_dict(ckpt["d_optim"])
+
+
+    def save_checkpoint(self, step_idx):
+        """
+            Method that save the checkpoint.
+
+            Args:
+                path (str): path to the checkpoint
+                step_idx (int): current step
+        """
+        LOGGER.info(f"Saving checkpoint to {path}")
+        ckpt = {
+            "g": self.generator.state_dict(),
+            "d": self.discriminator.state_dict(),
+            #"g_ema": self.g_ema.state_dict(),
+            "g_optim": self.g_optim.state_dict(),
+            "d_optim": self.d_optim.state_dict(),
+        }
+
+        path = os.path.join(self.config.checkpoint_dir, f"{step_idx}.pt")
+        torch.save(ckpt, path)
 
 
     def train(self):
         """
 
         """
+
         # create iterator with the dataloader
         loader = sample_data(self.dataloader)
 
@@ -150,6 +172,7 @@ class COIGANtrainer:
         if get_rank() == 0:
             pbar = tqdm(range(self.config.max_iter), initial=self.config.start_iter, dynamic_ncols=True, smoothing=0.01)
 
+        # if distributed, get the module of the generator and discriminator from the DataParallel wrapper
         if self.config.distributed:
             self.g_module = self.generator.module
             self.d_module = self.discriminator.module
@@ -157,6 +180,7 @@ class COIGANtrainer:
             self.g_module = self.generator
             self.d_module = self.discriminator
         
+
         for step_idx in pbar:
             i = step_idx + self.config.start_iter
 
@@ -164,41 +188,101 @@ class COIGANtrainer:
             if i > self.config.max_iter:
                 LOGGER.info("training finished!")
                 break
-
+            
             #get the data
             sample = next(loader)
 
             #unpack the data
-            base = sample["base"].to(self.device)
-            
+            gen_in = sample["gen_input"].to(self.device) # [base_r, base_g, base_b, mask_0, mask_1, mask_2, mask_3]
+            disc_in_true = sample["disc_input"].to(self.device) # [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
+
             # train the discriminator
+            requires_grad(self.discriminator, True)
+            requires_grad(self.generator, False)
+
+            #----> generate the fake images
+            fake_image = self.generator(gen_in)
             
+            #----> extract defects from generated
+            disc_in_fake = self.extract_defects(fake_image, gen_in)
+
+            #----> compute the discriminator outputs for the real and fake images
+            disc_out_true = self.discriminator(disc_in_true)
+            disc_out_fake = self.discriminator(disc_in_fake)
 
             # compute the discriminator losses
+            disc_loss = self.loss_mng.compute_discriminator_loss(disc_out_true, disc_out_fake)
 
-
-            # appply regularization to the discriminator
-
+            # apply regularization to the discriminator
+            
 
             # train the generator
+            requires_grad(self.discriminator, False)
+            requires_grad(self.generator, True)
 
+            #----> generate the fake images
+            fake_image = self.generator(gen_in)
+
+            #----> extract defects from generated
+            disc_in_fake = self.extract_defects(fake_image, gen_in)
+
+            #----> compute the discriminator outputs for the fake images
+            disc_out_fake = self.discriminator(disc_in_fake)
 
             # compute the generator losses
-
+            gen_loss = self.loss_mng.compute_generator_loss(disc_out_fake)
 
             # apply regularization to the generator
 
 
             # update the moving average generator
+            # self.update_average_generator()
+
+            # logging, checkpointing and visualization
+            if self.device == 0:
+
+                # log the results locally and on wandb
+                self.log_results(
+                    i, 
+                    gen_loss, 
+                    disc_loss
+                )
+
+                # log the outputs 
+                if i % self.visualize_interval == 0:
+                    self.log_outputs(
+                        
+                    )
+
+                # save the checkpoint
+                if i % self.config.checkpoint_interval == 0:
+                    self.save_checkpoint(i)
 
 
-            # log the results
-            
+    def extract_defects(self, fake_image, defect_masks):
+        """
+        Method that extract the generated defects from an image.
 
-            # save the checkpoint
+        Args:
+            fake_image (torch.Tensor): fake image with dfects, generated by the generator (shape: [batch_size, 3, 256, 256])
+            defect_masks (torch.Tensor): a tensor containing the masks of the defects
+                                            used to extract the generated tdefects from the generated image. (shape: [batch_size, n, 256, 256])
+        
+        Returns:
+            torch.Tensor: a tensor containing the extracted defects. (shape: [batch_size, nx3, 256, 256])
+        """
 
+        # get the number of defects
+        n = defect_masks.shape[1]
 
+        # create a tensor to store the extracted defects
+        extracted_defects = torch.zeros((fake_image.shape[0], n*3, fake_image.shape[2], fake_image.shape[3]), device=fake_image.device)
 
+        # for each defect, extract it from the generated image
+        for i in range(n):
+            extracted_defects[:, :, defect_masks[:, i] > 0] = fake_image[:, :, defect_masks[:, i] > 0]
+
+        return extracted_defects
         
         
 

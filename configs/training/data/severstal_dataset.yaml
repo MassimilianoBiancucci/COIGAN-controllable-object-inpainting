@@ -49,9 +49,14 @@ object_dataloader_kwargs:
 coigan_dataset_kwargs:
   allow_overlap: false # allow overlap between objects in input masks and on the gt objects
   shuffle: true
+  mask_noise_generator_kwargs:
+    kind: gaussian
+    
+
 
 torch_dataloader_kwargs:
   batch_size: ${data.batch_size}
   num_workers: ${data.num_workers}
   pin_memory: true
   drop_last: true
+  prefetch_factor: 4
