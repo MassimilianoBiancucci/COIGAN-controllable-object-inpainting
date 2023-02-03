@@ -48,11 +48,20 @@ object_dataloader_kwargs:
 
 coigan_dataset_kwargs:
   allow_overlap: false # allow overlap between objects in input masks and on the gt objects
+  mask_base_img: true # if true zero out the base image where the concat masks are 1s
   shuffle: true
+  length: ${max_iter}
   mask_noise_generator_kwargs:
-    kind: gaussian
-    
-
+    kind: multiscale
+    kind_kwargs:
+      interpolation: bilinear
+      strategy: replace
+      scales: [1, 3, 6, 12, 24]
+      base_generator_kwargs:
+        kind: gaussian
+        kind_kwargs:
+          mean: 0.0
+          std: 0.1
 
 torch_dataloader_kwargs:
   batch_size: ${data.batch_size}

@@ -3,12 +3,14 @@ import logging
 from random import Random
 import torch
 from torchvision.datasets import ImageFolder
-from omegaconf import OmegaConf
+from omegaconf import DictConfig
 
 from typing import List, Tuple, Union, Dict
 
 from COIGAN.training.data.datasets_loaders.shape_dataloader import ShapeObjectDataloader
 from COIGAN.training.data.datasets_loaders.object_dataloader import ObjectDataloader
+
+from COIGAN.training.data.augmentation.noise_generators import make_noise_generator
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +27,8 @@ class CoiganSeverstalSteelDefectsDataset:
         shape_dataloaders: List[ShapeObjectDataloader],
         defect_dataloaders: List[ObjectDataloader],
         defect_classes: List[str],
-        mask_noise_generator_kwargs: OmegaConf = None,
+        mask_noise_generator_kwargs: DictConfig = None,
+        mask_base_img: bool = False,
         allow_overlap: bool = False,
         shuffle: bool = True,
         seed: int = 42,
@@ -43,14 +46,15 @@ class CoiganSeverstalSteelDefectsDataset:
                     and to train the discriminator to detect the real defects.
             
         The output of this dataset is a tuple containing the following elements:
-            - ["gen_input"]: the input tensor of the generator, containing the base image and the input defects masks concatenated. shape: (3+n, H, W) where n is the number of defect classes.
-            - ["disc_input"]: the input tensor of the discriminator, containing the masked images of some defects of each class. shape: (3*n, H, W) where n is the number of defect classes.
-            - ["orig_masks"]: a tensor containing the original masks of the defects, without noise. shape: (n, H, W) where n is the number of defect classes.
+            - ["base"]: The base image, that it's not masked even if the mask_base_img flag is True.
+            - ["gen_input"]: the input tensor of the generator, containing the base image that can be masked with the input defect masks
+                        and the input defects masks (or the noise masks if the noise generator parameters are passed) concatenated. 
+                        shape: (3+n, H, W) where n is the number of defect classes.
+            - ["disc_input"]: the input tensor of the discriminator, containing the masked images of some defects of each class. 
+                        shape: (3*n, H, W) where n is the number of defect classes.
+            - ["orig_gen_input_masks"]: A tensor containing the original masks of the defects, without noise. 
+                        shape: (n, H, W) where n is the number of defect classes.
         
-        NOTE:
-            - The dataset take as lenght the lenght of the base dataset.
-
-            
         Args:
             base_dataset: the dataset containing the images without any defects
             shape_dataloaders: a list of dataloaders, one for each type of defect.
@@ -59,6 +63,8 @@ class CoiganSeverstalSteelDefectsDataset:
             mask_noise_generator: a function that takes as input a mask and return a noisy mask.
                     if passed the getitem method will return a noisy mask in the gen_in field of the output, 
                     and another field for the original masks.
+            mask_noise_generator_kwargs: a dictionary containing the kwargs for the mask_noise_generator.
+            mask_base_img: if True, the base image will be masked with the defects masks.
             allow_overlap: specify if the defects masks can overlap between different classes or not.
             shuffle: specify if the dataset should be shuffled or not.
             seed: seed used to shuffle the dataset.
@@ -96,10 +102,18 @@ class CoiganSeverstalSteelDefectsDataset:
         # labels
         self.defect_classes = defect_classes
         
+        # load the noise generator
+        self.mask_noise_generator = make_noise_generator(**mask_noise_generator_kwargs) \
+             if mask_noise_generator_kwargs is not None else None
+
         # other settings
+        self.mask_base_img = mask_base_img
         self.allow_overlap = allow_overlap
         self.shuffle = shuffle
         self.random = Random(seed)
+
+        # set the length, if None use the base dataset length
+        self.length = length if length is not None else self.base_dataset_len
 
         # regenerate the idxs
         self._regenerate_idxs()
@@ -245,13 +259,30 @@ class CoiganSeverstalSteelDefectsDataset:
             defects[idx] = defect
             defects_maks[idx] = dafect_mask
 
+
+        sample =  {}
+        
+        sample["base"] = base
+        base_masked = base.clone()
+
+        # masking the base image
+        if self.mask_base_img:
+            # if mask_base_img is True, the base image is masked with the union mask
+            base_masked[:, union_mask > 0] = 0
+        
+        masks = torch.cat(masks, dim=0)
+        if self.mask_noise_generator is not None:
+            noise_masks = self.mask_noise_generator(masks)
+            sample["gen_input"] = torch.cat([base_masked, noise_masks], dim=0).contiguous()
+            
+        else:
+            sample["gen_input"] = torch.cat([base_masked, masks], dim=0).contiguous()
+
+        sample["disc_input"] = torch.cat(defects, dim=0).contiguous()
+        sample["orig_gen_input_masks"] = masks.contiguous()
+
         # Store the union of the defects
         #sample["defects_masks_union"] = union_defect
-
-        sample =  {
-            "gen_input": torch.cat([base, *masks], dim=0).contiguous(),
-            "disc_input": torch.cat(defects, dim=0).contiguous()
-        }
 
         return sample
 
@@ -274,7 +305,7 @@ class CoiganSeverstalSteelDefectsDataset:
 
 
     def __len__(self):
-        return len(self.base_dataset)
+        return self.length
 
 
 def timeit(dataloader):
@@ -301,55 +332,54 @@ def visualize(COIGAN_dataloader: CoiganSeverstalSteelDefectsDataset):
         Visualize the dataset.
         TODO: need a refactor
     """
-    raise NotImplementedError("Visualize need a refactor to work with the new output format")
 
     n_classes = len(COIGAN_dataloader.defect_classes)
 
     cv2.namedWindow("base", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("base_masked", cv2.WINDOW_NORMAL)
 
     for i in range(n_classes):
         cv2.namedWindow("defect_{}".format(i), cv2.WINDOW_NORMAL)
-        cv2.namedWindow("defect_mask_{}".format(i), cv2.WINDOW_NORMAL)
-        cv2.namedWindow("mask_{}".format(i), cv2.WINDOW_NORMAL)
+        cv2.namedWindow("mask_orig_{}".format(i), cv2.WINDOW_NORMAL)
+        cv2.namedWindow("mask_noise_{}".format(i), cv2.WINDOW_NORMAL)
 
-    cv2.namedWindow("defects_masks_union", cv2.WINDOW_NORMAL)
+    #cv2.namedWindow("defects_masks_union", cv2.WINDOW_NORMAL)
 
     while True:
         sample = COIGAN_dataloader.get_sample_no_overlap()
 
-        # convert the base image
         img = (sample["base"].numpy()*255).transpose(1, 2, 0).astype(np.uint8)
 
-        # convert the input generator masks
-        shapes = [
-            (sample["masks"][i].numpy()*255).astype(np.uint8)
+        # unwrap the generator input
+        gen_input = sample["gen_input"]
+        masked_img = (gen_input[:3].numpy()*255).transpose(1, 2, 0).astype(np.uint8)
+        masks = gen_input[3:]
+        noise_masks = [
+            (masks[i].numpy()*255).astype(np.uint8)
+            for i in range(n_classes)
+        ]
+
+        orig_masks = sample["orig_gen_input_masks"]
+        orig_masks = [
+            (orig_masks[i].numpy()*255).astype(np.uint8)
             for i in range(n_classes)
         ]
 
         # convert the defects used as input for the discriminator
         defects = [
-            (sample["defects"][i].numpy()*255).transpose(1, 2, 0).astype(np.uint8)
+            (sample["disc_input"][i*3:(i*3)+3].numpy()*255).transpose(1, 2, 0).astype(np.uint8)
             for i in range(n_classes)
         ]
-
-        # convert the defects masks used as input for the discriminator
-        defects_masks = [
-            (sample["defects_masks"][i].numpy()*255).astype(np.uint8)
-            for i in range(n_classes)
-        ]
-
-        defects_masks_union = (sample["defects_masks_union"].numpy()*255).astype(np.uint8)
 
         # visualize the base image
         cv2.imshow("base", img)
+        cv2.imshow("base_masked", masked_img)
 
         # visualize the shapes
         for i in range(n_classes):
-            cv2.imshow("mask_{}".format(i), shapes[i])
+            cv2.imshow("mask_orig_{}".format(i), orig_masks[i])
+            cv2.imshow("mask_noise_{}".format(i), noise_masks[i])
             cv2.imshow("defect_{}".format(i), defects[i])
-            cv2.imshow("defect_mask_{}".format(i), defects_masks[i])
-        
-        cv2.imshow("defects_masks_union", defects_masks_union)
 
         if cv2.waitKey(0) == ord("q"):
             break
@@ -419,7 +449,23 @@ if __name__ == "__main__":
         shape_dataloaders,
         object_dataloaders,
         ["defect_1", "defect_2", "defect_3", "defect_4"],
-        allow_overlap=False
+        mask_base_img = True,
+        allow_overlap = False,
+        length = 100000,
+        mask_noise_generator_kwargs = {
+            "kind": "multiscale",
+            "kind_kwargs": {
+                "base_generator_kwargs": {
+                    "kind": "gaussian",
+                    "kind_kwargs": {
+                        "mean": 0.0,
+                        "std": 0.2
+                    }
+                },
+                "scales": [1, 3, 6, 12, 24],
+                "strategy": "replace"
+            }
+        }
     )
     coigan_dataloader.on_worker_init()
 

@@ -21,12 +21,6 @@ checkpoint_interval: 10000 # steps interval between each checkpoint
 concat_mask: true
 store_discr_outputs_for_vis: true
 
-
-wandb:
-  project: COIGAN
-  entity: deep_learning_team
-  mode: online
-
 defaults:
   - location: default_locations
   - data: severstal_dataset
@@ -34,7 +28,7 @@ defaults:
   - discriminator: swagan_discriminator
   - optimizers: default_optimizers
   - losses: default_losses
-  - visualizer: default_visualizer
+  - logger: default_logger
   - evaluator: default_evaluator
   - trainer: any_gpu_ddp
   - hydra: overrides

@@ -1,6 +1,6 @@
 # @package _group_
 kind: ffc_resnet
-input_nc: 4
+input_nc: 7
 output_nc: 3
 ngf: 64
 n_downsampling: 3

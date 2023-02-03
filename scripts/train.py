@@ -18,7 +18,7 @@ from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 
-@hydra.main(config_path="../configs/", config_name=".yaml")
+@hydra.main(config_path="../configs/training/", config_name="test_train.yaml")
 def main(config: OmegaConf):
     
     #resolve the config inplace

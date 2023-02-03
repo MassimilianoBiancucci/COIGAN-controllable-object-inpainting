@@ -1,0 +1,9 @@
+# @package _group_
+
+#local_log_path: ${hydra:run.dir}/logs
+
+wandb_kwargs:
+  project: COIGAN
+  entity: deep_learning_team
+  mode: online
+

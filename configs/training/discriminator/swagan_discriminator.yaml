@@ -2,4 +2,4 @@ kind: swagan_discriminator
 
 size: 256
 channel_multiplier: 3
-input_channels: 3
+input_channels: 12
