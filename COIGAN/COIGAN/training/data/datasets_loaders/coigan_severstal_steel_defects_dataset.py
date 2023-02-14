@@ -24,9 +24,9 @@ class CoiganSeverstalSteelDefectsDataset:
     def __init__(
         self,
         base_dataset: ImageFolder,
-        shape_dataloaders: List[ShapeObjectDataloader],
-        defect_dataloaders: List[ObjectDataloader],
         defect_classes: List[str],
+        defect_dataloaders: List[ObjectDataloader],
+        shape_dataloaders: List[ShapeObjectDataloader] = None,
         mask_noise_generator_kwargs: DictConfig = None,
         mask_base_img: bool = False,
         allow_overlap: bool = False,
@@ -57,7 +57,8 @@ class CoiganSeverstalSteelDefectsDataset:
         
         Args:
             base_dataset: the dataset containing the images without any defects
-            shape_dataloaders: a list of dataloaders, one for each type of defect.
+            shape_dataloaders: a list of dataloaders, one for each type of defect. Default None, if None the same defects are used for the generator and the discriminator.
+                to the generator only the defects masks are passed, while to the discriminator the defects images are passed.
             defect dataloaders: a list of dataloaders, one for each type of defect.
             defect_classes: a list of strings, one for each type of defect.
             mask_noise_generator: a function that takes as input a mask and return a noisy mask.
@@ -72,8 +73,9 @@ class CoiganSeverstalSteelDefectsDataset:
         """
 
         # check the input
-        if len(shape_dataloaders) != len(defect_dataloaders):
-            raise ValueError("The number of shape dataloaders and defect dataloaders must be the same.")
+        if shape_dataloaders is not None:
+            if len(shape_dataloaders) != len(defect_dataloaders):
+                raise ValueError("The number of shape dataloaders and defect dataloaders must be the same.")
 
         if len(defect_dataloaders) != len(defect_classes):
             raise ValueError("The number of shape dataloaders and defect classes must be the same.")
@@ -90,9 +92,10 @@ class CoiganSeverstalSteelDefectsDataset:
         self.base_dataset_idxs = []
 
         # shape dataloaders vars
-        self.shape_regenerations = [0] * len(shape_dataloaders)
-        self.shape_dataloaders_len = [len(shape_dataloader) for shape_dataloader in shape_dataloaders]
-        self.shape_dataloaders_idxs = [[] for _ in range(len(shape_dataloaders))]
+        if shape_dataloaders is not None:
+            self.shape_regenerations = [0] * len(shape_dataloaders)
+            self.shape_dataloaders_len = [len(shape_dataloader) for shape_dataloader in shape_dataloaders]
+            self.shape_dataloaders_idxs = [[] for _ in range(len(shape_dataloaders))]
 
         # defect dataloaders vars
         self.defect_regenerations = [0] * len(defect_dataloaders)
@@ -123,7 +126,8 @@ class CoiganSeverstalSteelDefectsDataset:
         """
             Init method for the workers.
         """
-        for shape_dataloader in self.shape_dataloaders: shape_dataloader.on_worker_init()
+        if self.shape_dataloaders is not None:
+            for shape_dataloader in self.shape_dataloaders: shape_dataloader.on_worker_init()
         for defect_dataloader in self.defect_dataloaders: defect_dataloader.on_worker_init()
 
 
@@ -155,17 +159,18 @@ class CoiganSeverstalSteelDefectsDataset:
             idx: the index of the shape dataset to regenerate.
                 If -1, regenerate all the shape datasets.
         """
-        if idx == -1:
-            # regenerate the shape dataloaders idxs
-            for i, shape_dataloader_len in enumerate(self.shape_dataloaders_len):
-                if len(self.shape_dataloaders_idxs[i]) == 0:
-                    self.shape_regenerations[i] += 1
-                    self.shape_dataloaders_idxs[i] = list(range(shape_dataloader_len))
-                    if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[i])
-        else:
-            self.shape_regenerations[idx] += 1
-            self.shape_dataloaders_idxs[idx] = list(range(self.shape_dataloaders_len[idx]))
-            if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[idx])
+        if self.shape_dataloaders is not None:
+            if idx == -1:
+                # regenerate the shape dataloaders idxs
+                for i, shape_dataloader_len in enumerate(self.shape_dataloaders_len):
+                    if len(self.shape_dataloaders_idxs[i]) == 0:
+                        self.shape_regenerations[i] += 1
+                        self.shape_dataloaders_idxs[i] = list(range(shape_dataloader_len))
+                        if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[i])
+            else:
+                self.shape_regenerations[idx] += 1
+                self.shape_dataloaders_idxs[idx] = list(range(self.shape_dataloaders_len[idx]))
+                if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[idx])
 
 
     def _regenerate_defect_idxs(self, idx: int = -1):
@@ -201,10 +206,11 @@ class CoiganSeverstalSteelDefectsDataset:
 
         if not only_base:
             # get the shape idxs
-            shape_idxs = []
-            for i, shape_dataloader_idxs in enumerate(self.shape_dataloaders_idxs):
-                if len(shape_dataloader_idxs) == 0: self._regenerate_shape_idxs(i)
-                shape_idxs.append(self.shape_dataloaders_idxs[i].pop())
+            if self.shape_dataloaders is not None:
+                shape_idxs = []
+                for i, shape_dataloader_idxs in enumerate(self.shape_dataloaders_idxs):
+                    if len(shape_dataloader_idxs) == 0: self._regenerate_shape_idxs(i)
+                    shape_idxs.append(self.shape_dataloaders_idxs[i].pop())
             
             # get the defect idxs
             defect_idxs = []
@@ -228,6 +234,14 @@ class CoiganSeverstalSteelDefectsDataset:
         """
             Get sample method of the dataset.
             This method is used to get a sample from the dataset.
+
+            Returns:
+                A dict with the following keys:
+                - base: image of the base dataset without any modification.
+                - gen_input: tensor of the base image (masked) concatenated with the masks of defects to inpaint (noised). channels: (br, bg, bb, mask0, mask1, mask2, mask3)
+                - disc_input: tensor of concatenated masked images of defects. channels: (d0r, d0g, d0b, d1r, d1g, d1b, d2r, d2g, d2b, d3r, d3g, d3b)
+                - orig_gen_input_masks:
+
         """
 
         # Get the indexes for each sub dataset
@@ -235,17 +249,6 @@ class CoiganSeverstalSteelDefectsDataset:
 
         # Get the base image
         base = self.base_dataset[base_idx][0]
-
-        # Get the masks for each defect
-        # used for the inpainting process
-        # input of generator
-        masks = [None] * len(self.shape_dataloaders)
-        union_mask = torch.zeros(base.shape[-2:])
-        shape_dataloaders_idxs = list(range(len(self.shape_dataloaders)))
-        self.random.shuffle(shape_dataloaders_idxs)
-        for idx in shape_dataloaders_idxs:
-            mask, union_mask = self.shape_dataloaders[idx].generate_random_sample(union_mask)
-            masks[idx] = mask.unsqueeze(0)
         
         # Get the defects images
         # used for train the discriminator
@@ -257,13 +260,34 @@ class CoiganSeverstalSteelDefectsDataset:
         for idx in defect_dataloaders_idxs:
             defect, dafect_mask, union_defect = self.defect_dataloaders[idx].generate_random_sample(union_defect)
             defects[idx] = defect
-            defects_maks[idx] = dafect_mask
+            defects_maks[idx] = dafect_mask.unsqueeze(0)
 
+
+        if self.shape_dataloaders is not None:
+            # Get the masks for each defect
+            # used for the inpainting process
+            # input of generator
+            masks = [None] * len(self.shape_dataloaders)
+            union_mask = torch.zeros(base.shape[-2:])
+            shape_dataloaders_idxs = list(range(len(self.shape_dataloaders)))
+            self.random.shuffle(shape_dataloaders_idxs)
+            for idx in shape_dataloaders_idxs:
+                mask, union_mask = self.shape_dataloaders[idx].generate_random_sample(union_mask)
+                masks[idx] = mask.unsqueeze(0)
+        else:
+            # if no shape dataloader are provided, as masks and union_mask
+            # use the union_defect tensor. THis way the defects passed to 
+            # the generator and the discriminator are the same.
+            masks = defects_maks
+            union_mask = union_defect
 
         sample =  {}
         
         sample["base"] = base
         base_masked = base.clone()
+
+        # Store the union of the shapes used as input of the generator
+        sample["gen_input_union_mask"] = union_mask
 
         # masking the base image
         if self.mask_base_img:
@@ -280,9 +304,6 @@ class CoiganSeverstalSteelDefectsDataset:
 
         sample["disc_input"] = torch.cat(defects, dim=0).contiguous()
         sample["orig_gen_input_masks"] = masks.contiguous()
-
-        # Store the union of the defects
-        #sample["defects_masks_union"] = union_defect
 
         return sample
 
@@ -446,9 +467,9 @@ if __name__ == "__main__":
     # create the COIGAN dataloader
     coigan_dataloader = CoiganSeverstalSteelDefectsDataset(
         base_dataset,
-        shape_dataloaders,
-        object_dataloaders,
         ["defect_1", "defect_2", "defect_3", "defect_4"],
+        object_dataloaders,
+        #shape_dataloaders,
         mask_base_img = True,
         allow_overlap = False,
         length = 100000,

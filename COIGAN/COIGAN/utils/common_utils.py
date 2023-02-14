@@ -43,7 +43,6 @@ def sample_data(loader):
             for batch in loader:
                 yield batch
 
-
 def check_and_warn_input_range(tensor, min_value, max_value, name):
     actual_min = tensor.min()
     actual_max = tensor.max()

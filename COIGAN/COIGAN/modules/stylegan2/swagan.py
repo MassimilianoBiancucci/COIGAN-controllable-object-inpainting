@@ -8,6 +8,8 @@ from torch import nn
 from torch.nn import functional as F
 from torch.autograd import Function
 
+from typing import Optional
+
 from COIGAN.modules.stylegan2.op import FusedLeakyReLU, fused_leaky_relu, upfirdn2d, conv2d_gradfix
 from COIGAN.modules.stylegan2.stylegan2 import (
     ModulatedConv2d,
@@ -461,10 +463,28 @@ class FromRGB(nn.Module):
 
 class Discriminator(nn.Module):
 
-    def __init__(self, size, channel_multiplier=2, blur_kernel=[1, 3, 3, 1], input_channels=3):
+    def __init__(
+        self, 
+        size, 
+        channel_multiplier=2, 
+        blur_kernel=[1, 3, 3, 1], 
+        input_channels=3,
+        keep_features: bool = False
+    ):
+        """
+        SWAGAN discriminator.
+
+        Args:
+            size (int): input size.
+            channel_multiplier (int): Multiplier for the number of channels of conv layers.
+            blur_kernel (list): Blur kernel to be used for downsampling.
+            input_channels (int): Number of channels in the input image.
+            features (bool): If True, the inference return the intermediate features.
+        """
         super().__init__()
 
         self.in_ch = input_channels
+        self.keep_features = keep_features
 
         channels = {
             4: 512,
@@ -509,12 +529,15 @@ class Discriminator(nn.Module):
     def forward(self, input):
         input = self.dwt(input)
         out = None
+        features = []
 
         for from_rgb, conv in zip(self.from_rgbs, self.convs):
             input, out = from_rgb(input, out)
-            out = conv(out)
-
-        _, out = self.from_rgbs[-1](input, out)
+            out = conv(out)  
+            features.append(out) # store the features
+            
+        _, out = self.from_rgbs[-1](input, out)   
+        features.append(out) # store the features
 
         batch, channel, height, width = out.shape
         group = min(batch, self.stddev_group)
@@ -527,9 +550,13 @@ class Discriminator(nn.Module):
         out = torch.cat([out, stddev], 1)
 
         out = self.final_conv(out)
+        features.append(out) # store the features
 
         out = out.view(batch, -1)
         out = self.final_linear(out)
 
-        return out
+        if self.keep_features:
+            return out, features
+        else:
+            return out
 

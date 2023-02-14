@@ -1,7 +1,15 @@
+#####################################################################################
+### ATTENTION : This var must be setted with the actual path to the project home! ###
+project_home: /home/max/thesis/COIGAN-controllable-object-inpainting
+#####################################################################################
+
 data_root_dir: ${data.dataset_location}
-out_root_dir: /home/max/thesis/COIGAN-controllable-object-inpainting/experiments
+out_root_dir: ${location.project_home}/experiments
 
-checkpoint_dir: ${hydra:run.dir}/checkpoints
+experiment_path: ${location.out_root_dir}/${run_name}
+checkpoint_dir: ${location.experiment_path}/checkpoints
+logs_dir: ${location.experiment_path}/logs
+samples_dir: ${location.experiment_path}/samples
 
-pretrained_models: /home/ubuntu/thesis/COIGAN-controllable-object-inpainting/models
-loss_models: /home/ubuntu/thesis/COIGAN-controllable-object-inpainting/models_loss
+pretrained_models: ${location.project_home}/models
+loss_models: ${location.project_home}/models_loss

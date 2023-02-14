@@ -9,6 +9,13 @@ num_workers: ${num_workers} # dataloader workers
 dataloader_shuffle: false # enabling the dataset shuffling at dataloader level
 seed: 42 # seed for the dataset shuffling
 
+# Setting that enable a beahvior that generate for the same sample different shapes in input to the generator
+# and defects in input to the discriminator, probably discouragable with feature_matching loss with high weight.
+differet_shapes: False ########################################################################################
+
+allow_overlap: false # allow overlap between objects in input masks and on the gt objects
+mask_base_img: true # if true zero out the base image where the concat masks are 1s
+
 kind: ${data.dataset_name}
 
 augmentation_sets: 
@@ -47,8 +54,8 @@ object_dataloader_kwargs:
   defects_probs: [0.2, 0.5, 0.2, 0.1]
 
 coigan_dataset_kwargs:
-  allow_overlap: false # allow overlap between objects in input masks and on the gt objects
-  mask_base_img: true # if true zero out the base image where the concat masks are 1s
+  allow_overlap: ${data.allow_overlap} # allow overlap between objects in input masks and on the gt objects
+  mask_base_img: ${data.mask_base_img} # if true zero out the base image where the concat masks are 1s
   shuffle: true
   length: ${max_iter}
   mask_noise_generator_kwargs:

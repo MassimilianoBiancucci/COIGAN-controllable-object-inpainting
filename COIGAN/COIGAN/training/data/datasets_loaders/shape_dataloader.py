@@ -127,18 +127,19 @@ class ShapeObjectDataloader:
         shapes = self.input_dataset[idxs]
 
         # mount the shapes in the tile
+        _avoid_mask = avoid_mask
         for i in range(num_shapes):
-            tile, avoid_mask = self.apply_shape(
+            tile, _avoid_mask = self.apply_shape(
                 tile, 
                 shapes[i].squeeze(0),
                 self.random,
-                avoid_mask=avoid_mask
+                avoid_mask=_avoid_mask
             )
         
         if avoid_mask is None:
             return tile
         else:
-            return tile, avoid_mask
+            return tile, _avoid_mask
 
 
     def __getitem__(self, idx):

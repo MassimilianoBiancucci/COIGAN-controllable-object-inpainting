@@ -13,7 +13,7 @@ from omegaconf import OmegaConf
 
 from COIGAN.shape_training.trainers.stylegan2_trainer import stylegan2_trainer
 from COIGAN.training.data.datasets_loaders.shape_dataloader import ShapeObjectDataloader
-from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineMaskObjectdataset
+from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineMaskObjectDataset
 from COIGAN.training.data.augmentation.augmentor import Augmentor
 from COIGAN.training.data.augmentation.augmentation_presets import mask_inpainting_preset, imgs_inpainting_preset
 
@@ -57,7 +57,7 @@ def train(rank: int, world_size: int, config):
         only_imgs_transforms=imgs_inpainting_preset
     )
 
-    masks_dataset = JsonLineMaskObjectdataset(
+    masks_dataset = JsonLineMaskObjectDataset(
         config.data_root_dir,
         binary = config.binary,
         augmentor=augmentor
@@ -66,7 +66,6 @@ def train(rank: int, world_size: int, config):
     dataset = ShapeObjectDataloader(
         input_dataset = masks_dataset,
         sample_shapes=config.sample_shapes,
-        strategy=config.strategy,
         out_channels=config.channels
     )
 

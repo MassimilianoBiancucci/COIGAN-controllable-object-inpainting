@@ -19,7 +19,8 @@ class DataLogger:
 
     def __init__(
         self,
-        local_log_path: str = None,
+        logs_dir: str = None,
+        enable_wandb: bool = False,
         wandb_kwargs: dict = None,
         config: OmegaConf = None,
     ):
@@ -27,12 +28,13 @@ class DataLogger:
             Init the DataLogger class.
 
             Args:
+                enable_wandb (bool): if True wandb is used. Otherwise the wandb initialization is skipped.
                 wandb_kwargs (dict): the wandb kwargs. If None, wandb is not used.
         """
 
         # init wandb
         self.wandb = False # flag that indicates if wandb is used
-        if wandb_kwargs is not None:
+        if enable_wandb and wandb_kwargs is not None:
             if wandb is None:
                 LOGGER.warning("wandb is not installed, wandb_kwargs will be ignored!")
             else:
@@ -48,15 +50,14 @@ class DataLogger:
         
         # init local 
         self.local_log = False # flag that indicates if local is used
-        if local_log_path is not None:
-            self.local_log_path = local_log_path
+        if logs_dir is not None:
+            self.logs_dir = logs_dir
             self.local_log = True
 
             # create a csv file containing the training metrics
-            self.local_log_file = os.path.join(self.local_log_path, "training_metrics.csv")
-            #with open(self.local_log_file, "w") as f:
+            #self.log_file = os.path.join(self.logs_dir, "training_metrics.csv")
+            #with open(self.log_file, "w") as f:
             #    f.write("step_idx,loss\n")
-            # TODO add the header
 
     
     def log_step_results(self, step_idx: int, results: dict):
@@ -69,12 +70,12 @@ class DataLogger:
         """
         # log the results on wandb
         if self.wandb:
-            # TODO save the results on wandb
-            pass
+            # log the results to wandb
+            wandb.log(results, step=step_idx)
         
         # log the results on local
         if self.local_log:
-            # TODO save the results on local
+            # log the results to local
             pass
     
 
@@ -88,8 +89,13 @@ class DataLogger:
         """
         # log the results on wandb
         if self.wandb:
-            # TODO save the results on wandb
-            pass
+            # wrap each image in a wandb.Image object
+            wandb_img_results = {}
+            for key, value in results.items():
+                wandb_img_results[key] = wandb.Image(value)
+            
+            # log the results to wandb
+            wandb.log(wandb_img_results, step=step_idx)
         
         # log the results on local
         if self.local_log:

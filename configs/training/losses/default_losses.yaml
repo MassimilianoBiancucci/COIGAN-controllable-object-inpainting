@@ -1,18 +1,44 @@
 
-l1:
-  weight_missing: 0
-  weight_known: 10
+######################################
+### Loss manager parameters
 
-adversarial:
-  kind: r1
-  weight: 10
-  gp_coef: 0.001
-  mask_as_fake_target: true
-  allow_scale_mask: true
 
-feature_matching:
-  weight: 100
+######################################
+### Generator losses parameters
+generator_losses:
+  reduction: mean # mean, sum
 
-resnet_pl:
-  weight: 30
-  weights_path: ${env:TORCH_HOME}
+  l1:
+    weight: 10
+    
+  adversarial: # TODO sistemare i parametri
+    kind: r1
+    weight: 10
+    gp_coef: 0.001
+    mask_as_fake_target: true
+    allow_scale_mask: true
+
+  feature_matching:
+    weight: 100
+
+  resnet_pl:
+    weight: 30
+    weights_path: ${location.loss_models}
+
+# genrator regularitions
+generator_reg:
+  g_reg_every: 4 # n steps between 2 generator updarte regularizations
+
+
+######################################
+### Discriminator losses parameters
+discriminator_losses:
+  logistic:
+    weight: 1
+
+# discriminator regularitions
+discriminator_reg: # TODO sistema i parametri
+  d_reg_every: 16 # n steps between 2 discriminator updarte regularizations
+  r1:
+    weight: 0.1
+    gp_coef: 0.001

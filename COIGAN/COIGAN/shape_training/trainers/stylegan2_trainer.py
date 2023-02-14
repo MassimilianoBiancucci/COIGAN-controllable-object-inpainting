@@ -246,7 +246,8 @@ class stylegan2_trainer:
                 r1_loss = self.d_r1_loss(real_pred, real_img)
 
                 self.discriminator.zero_grad()
-                (self.config.r1 / 2 * r1_loss * self.config.d_reg_every + 0 * real_pred[0]).backward()
+                r1_weighted_loss = (self.config.r1 / 2) * r1_loss * self.config.d_reg_every
+                r1_weighted_loss.backward()
 
                 self.d_optim.step()
 

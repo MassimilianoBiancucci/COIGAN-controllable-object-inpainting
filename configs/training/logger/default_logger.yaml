@@ -1,7 +1,8 @@
 # @package _group_
 
-#local_log_path: ${hydra:run.dir}/logs
+logs_dir: ${location.logs_dir}
 
+enable_wandb: ${enable_wandb} # enable wandb logging, if False 
 wandb_kwargs:
   project: COIGAN
   entity: deep_learning_team

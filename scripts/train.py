@@ -27,10 +27,6 @@ def main(config: OmegaConf):
     LOGGER.info(f'Config: {OmegaConf.to_yaml(config)}')
 
     OmegaConf.save(config, os.path.join(os.getcwd(), 'config.yaml')) # saving the configs to config.hydra.run.dir
-    
-    # create the checkpoints dirls
-    os.makedirs(config.ckpt_dir, exist_ok=True)
-    os.makedirs(config.sampl_dir, exist_ok=True)
 
     if config.distributed:
         world_size = torch.cuda.device_count()
@@ -47,9 +43,10 @@ def train(rank: int, world_size: int, config):
     if config.distributed:
         ddp_setup(rank, world_size)
 
-    dataset = make_dataloader(config.data, rank=rank)
+    # generate the dataset and wrap it in a dataloader
+    dataloader = make_dataloader(config, rank=rank)
 
-    trainer = COIGANtrainer(rank, config, dataset)
+    trainer = COIGANtrainer(rank, config, dataloader)
     trainer.train()
 
 

@@ -136,3 +136,4 @@ dmypy.json
 experiments/
 experiments_*/
 datasets/
+test_notebooks/

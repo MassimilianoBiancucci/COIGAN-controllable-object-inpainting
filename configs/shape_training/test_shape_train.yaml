@@ -7,7 +7,7 @@ run_name: ${conf_name}_${now:%d-%m-%Y_%H-%M-%S}
 # location of the checkpoint to resume training from
 ckpt: null
 # location of the output directory (where checkpoints and log images will be saved)
-out_root_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting/experiments_shape
+out_root_dir: /home/max/thesis/COIGAN-controllable-object-inpainting/experiments_shape
 # location of checkpoint dir
 ckpt_dir: ${out_root_dir}/${run_name}/checkpoints
 # location samples folder
@@ -15,7 +15,7 @@ sampl_dir: ${out_root_dir}/${run_name}/samples
 ###########################
 
 # dataset parameters
-data_root_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/object_datasets/object_dataset_0
+data_root_dir: /home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/object_datasets/object_dataset_0
 binary: True
 sample_shapes: [1, 3]
 strategy: random
@@ -46,7 +46,7 @@ d_reg_every: 16
 g_reg_every: 4
 
 # training options
-distributed: True
+distributed: False
 
 # datalogging options (wandb)
 wandb: True # set to false if you don't want to use wandb

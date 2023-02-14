@@ -1,6 +1,6 @@
 import os
 import logging
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
@@ -53,7 +53,7 @@ def make_dataloader(config: OmegaConf, rank=None):
     return dataloader
 
 
-def make_severstal_steel_defect(config: OmegaConf, seed: int = None):
+def make_severstal_steel_defect(config: DictConfig, seed: int = None):
     """
     Method to preparare the dataset object 
     for the severstal steel defect dataset.
@@ -93,7 +93,7 @@ def make_severstal_steel_defect(config: OmegaConf, seed: int = None):
             **config.shape_dataloader_kwargs
         )
         for object_dataset_path in object_datasets_paths
-    ]
+    ] if config.differet_shapes else None
 
     # create the object dataset
     object_dataloaders = [
@@ -112,9 +112,9 @@ def make_severstal_steel_defect(config: OmegaConf, seed: int = None):
     # create the COIGAN dataloader
     dataset = CoiganSeverstalSteelDefectsDataset(
         base_dataset,
-        shape_dataloaders,
-        object_dataloaders,
         config.object_datasets.classes,
+        object_dataloaders,
+        shape_dataloaders,
         seed=seed,
         **config.coigan_dataset_kwargs
     )
@@ -127,17 +127,25 @@ def make_severstal_steel_defect(config: OmegaConf, seed: int = None):
 if __name__ == "__main__":
     import hydra
     from tqdm import tqdm
+    from COIGAN.utils.common_utils import sample_data
 
     @hydra.main(config_path="/home/max/thesis/COIGAN-controllable-object-inpainting/configs/training/", config_name="test_train.yaml")
     def main_debug(cfg: OmegaConf):
         dataloader = make_dataloader(cfg)
+        loader = sample_data(dataloader)
 
-        for sample in tqdm(dataloader):
-            pass
+        for i in range(1000):
+            sample = next(loader)
+            print(sample["base"].shape)
+
+        #for sample in tqdm(dataloader):
+            #pass
             #base = sample["base"]
             #masks = sample["masks"]
             #defects = sample["defects"]
             #defects_masks = sample["defects_masks"]
+
+
 
     main_debug()
 
