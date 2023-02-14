@@ -4,6 +4,7 @@ import logging
 import os
 
 os.environ["HYDRA_FULL_ERROR"] = "1"
+os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"
 
 import torch
 import torch.multiprocessing as mp
@@ -18,7 +19,7 @@ from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 
-@hydra.main(config_path="../configs/training/", config_name="test_train.yaml")
+@hydra.main(config_path="../configs/training/", config_name="test_train.yaml", version_base="1.1")
 def main(config: OmegaConf):
     
     #resolve the config inplace
@@ -31,13 +32,11 @@ def main(config: OmegaConf):
     if config.distributed:
         world_size = torch.cuda.device_count()
         mp.spawn(train, args=(world_size, config), nprocs=world_size)
-
     else:
         train(0, 1, config)
-    
+
 
 def train(rank: int, world_size: int, config):
-
     torch.cuda.set_device(rank)
 
     if config.distributed:

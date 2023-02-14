@@ -536,7 +536,7 @@ class Discriminator(nn.Module):
             out = conv(out)  
             features.append(out) # store the features
             
-        _, out = self.from_rgbs[-1](input, out)   
+        _, out = self.from_rgbs[-1](input, out)
         features.append(out) # store the features
 
         batch, channel, height, width = out.shape

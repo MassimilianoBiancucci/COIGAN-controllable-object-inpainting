@@ -105,7 +105,7 @@ def all_gather(data):
 def reduce_loss_dict(loss_dict):
     world_size = get_world_size()
 
-    if world_size < 2:
+    if len(loss_dict) == 0 or world_size < 2:
         return loss_dict
 
     with torch.no_grad():

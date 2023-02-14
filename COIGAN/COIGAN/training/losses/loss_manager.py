@@ -196,11 +196,11 @@ class CoiganLossManager:
             real_input.requires_grad = True
             disc_out = self.discriminator(real_input)
             real_pred = disc_out[0] if isinstance(disc_out, tuple) else disc_out # if the discriminator returns the features too
-            d_regs["r1_loss"] = self.r1_reg(real_pred, real_input) * self.r1_reg_weight * self.d_reg_every
+            d_regs["d_r1_loss"] = self.r1_reg(real_pred, real_input) * self.r1_reg_weight * self.d_reg_every
             
             # apply the regularization
             self.discriminator.zero_grad()
-            d_regs["r1_loss"].backward()
+            d_regs["d_r1_loss"].backward()
             self.d_opt.step()
 
         return d_regs
@@ -252,24 +252,24 @@ class CoiganLossManager:
 
         # compute the generator loss
         if self.loss_l1 is not None:
-            generator_losses["loss_l1"] = self.loss_l1(fake, real) * self.loss_l1_weight
+            generator_losses["g_loss_l1"] = self.loss_l1(fake, real) * self.loss_l1_weight
         if self.loss_mse is not None:
-            generator_losses["loss_mse"] = self.loss_mse(fake, real) * self.loss_mse_weight 
+            generator_losses["g_loss_mse"] = self.loss_mse(fake, real) * self.loss_mse_weight 
         if self.loss_resnet_pl is not None:
             generator_losses["loss_resnet_pl"] = self.loss_resnet_pl(fake, real) * self.loss_resnet_pl_weight
         if self.loss_feature_matching is not None:
-            generator_losses["loss_fm"] = self.loss_feature_matching(fake_features, real_features) * self.loss_feature_matching_weight
+            generator_losses["g_loss_fm"] = self.loss_feature_matching(fake_features, real_features) * self.loss_feature_matching_weight
         if self.loss_adversarial is not None:
-            generator_losses["loss_adv"] = self.loss_adversarial(disc_fake_out) * self.loss_adversarial_weight
+            generator_losses["g_loss_adv"] = self.loss_adversarial(disc_fake_out) * self.loss_adversarial_weight
 
         if self.gen_loss_reduction == 'mean':
-            generator_losses["loss"] = torch.mean(torch.stack(list(generator_losses.values())))
+            generator_losses["g_loss"] = torch.mean(torch.stack(list(generator_losses.values())))
         elif self.gen_loss_reduction == 'sum':
-            generator_losses["loss"] = torch.sum(torch.stack(list(generator_losses.values())))
+            generator_losses["g_loss"] = torch.sum(torch.stack(list(generator_losses.values())))
 
         # update the generator
         self.generator.zero_grad()
-        generator_losses["loss"].backward()
+        generator_losses["g_loss"].backward()
         self.g_opt.step()
 
         return generator_losses

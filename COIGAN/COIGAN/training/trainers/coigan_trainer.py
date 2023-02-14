@@ -96,7 +96,8 @@ class COIGANtrainer:
                 self.discriminator,
                 device_ids=[self.device],
                 output_device=self.device,
-                broadcast_buffers=False
+                broadcast_buffers=False,
+                find_unused_parameters=True
             )
         
         # load the loss manager
@@ -194,8 +195,10 @@ class COIGANtrainer:
 
         self.turn = True # True -> discriminator turn, False -> generator turn
         
-        for step_idx in pbar:
-            i = step_idx + self.config.start_iter
+        for i in range(self.config.start_iter, self.config.max_iter):
+            
+            if get_rank() == 0:
+                pbar.update()
 
             # check if done
             if i > self.config.max_iter:
@@ -212,8 +215,10 @@ class COIGANtrainer:
             disc_in_true = sample["disc_input"].to(self.device) # [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
             union_mask = sample["gen_input_union_mask"] # [union_mask] the union mask of all the masks used in the generator input
 
+            disc_scores = {}
             disc_loss = {}
             gen_loss = {}
+            metrics = {}
 
             #######################################################################################
             #######################################################################################
@@ -233,13 +238,18 @@ class COIGANtrainer:
                 disc_out_true, disc_true_features = self.discriminator(disc_in_true)
                 disc_out_fake, disc_fake_features = self.discriminator(disc_in_fake)
 
+                disc_scores = {
+                    "real_score": disc_out_true.mean(),
+                    "fake_score": disc_out_fake.mean(),
+                }
+
                 # compute the discriminator losses
                 disc_loss = self.loss_mng.discriminator_loss(disc_out_true, disc_out_fake)
 
                 # apply regularization to the discriminator
                 if i % self.loss_mng.d_reg_every == 0:
                     d_reg_losses = self.loss_mng.discriminator_regularization(disc_in_true)
-                    disc_loss["reg"] = d_reg_losses
+                    disc_loss.update(d_reg_losses)
                 
                 # determine the next turn owner
                 self.d_step += 1
@@ -265,6 +275,11 @@ class COIGANtrainer:
                 disc_out_true, disc_true_features = self.discriminator(disc_in_true)
                 disc_out_fake, disc_fake_features = self.discriminator(disc_in_fake)
                 
+                disc_scores = {
+                    "real_score": disc_out_true.mean(),
+                    "fake_score": disc_out_fake.mean(),
+                }
+
                 # prepare the base image and the generated base image for the generator loss
                 base_image_4loss = gen_in[:, :3, :, :] # load the image from the gen_in tensor, so if there are masked defects, the mask is already applied.
                 fake_image_4loss = fake_image.clone() # TODO verify if a copy is needed
@@ -296,19 +311,18 @@ class COIGANtrainer:
                     self.g_step = 0
                     self.turn = True
 
+            
+            metrics.update(disc_scores)
+            metrics.update(disc_loss)
+            metrics.update(gen_loss)
+            reduced_metrics = reduce_loss_dict(metrics)
 
             #######################################################################################
             #######################################################################################
             # logging, checkpointing and visualization ############################################
             if self.device == 0:
                 # log the results locally and on wandb
-                self.datalogger.log_step_results(
-                    i, 
-                    {
-                        "disc_loss": disc_loss,
-                        "gen_loss": gen_loss
-                    }
-                )
+                self.datalogger.log_step_results(i, reduced_metrics)
 
                 # log the outputs 
                 if i % self.log_img_interval == 0:
@@ -316,12 +330,12 @@ class COIGANtrainer:
                     visual_results = {
                         "base_image": self.make_grid(base_image),
                         "fake_image": self.make_grid(fake_image),
-                        "union_shapes": self.make_grid(union_mask)
+                        "union_shapes": self.make_grid(union_mask.unsqueeze(1))
                     }
 
                     # add the shapes for each class
                     for j in range(gen_in_orig_masks.shape[1]):
-                        visual_results[f"shape_{j}"] = self.make_grid(gen_in_orig_masks[:, j])
+                        visual_results[f"shape_{j}"] = self.make_grid(gen_in_orig_masks[:, j].unsqueeze(1))
 
                     self.datalogger.log_visual_results(i, visual_results)
 

@@ -8,18 +8,18 @@ checkpoint: null # path to the checkpoint file to load
 start_iter: 0
 max_iter: 800000
 
-batch_size: 2 # batch size for each training process
+batch_size: 8 # batch size for each training process
 num_workers: 4 # dataloader workers
 
 gen_steps: 1 # define how many steps to train the generator before give the turn to the discriminator
 disc_steps: 1 # define how many steps to train the discriminator before give the turn to the generator
 
 ################################################
-distributed: false # enable distributed training
+distributed: False # enable distributed training
 ################################################
 
-enable_wandb: false # enable wandb logging, if False no logging will be performed on the cloud
-log_img_interval: 1000 # steps interval between each output visualization
+enable_wandb: True # enable wandb logging, if False no logging will be performed on the cloud
+log_img_interval: 100 # steps interval between each output visualization
 checkpoint_interval: 10000 # steps interval between each checkpoint
 
 concat_mask: true

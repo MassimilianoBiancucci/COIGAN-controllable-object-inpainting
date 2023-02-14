@@ -1,7 +1,7 @@
 # @package _group_
 
 dataset_name: severstal-steel-defect # name of the dataset
-dataset_location: /home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1 # dataset path
+dataset_location: ${location.project_home}/datasets/severstal_steel_defect_dataset/test_1 # dataset path
 
 out_size: 256 # size of dataset
 batch_size: ${batch_size} # batch size for each training process
