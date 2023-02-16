@@ -27,7 +27,7 @@ def d_r1_loss(real_pred, real_img):
             outputs=real_pred.sum(), inputs=real_img, create_graph=True
         )
     grad_penalty = grad_real.pow(2).reshape(grad_real.shape[0], -1).sum(1).mean()
-
+    
     return grad_penalty
 
 

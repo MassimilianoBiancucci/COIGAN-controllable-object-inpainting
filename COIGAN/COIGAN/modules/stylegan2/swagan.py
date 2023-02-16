@@ -485,6 +485,7 @@ class Discriminator(nn.Module):
 
         self.in_ch = input_channels
         self.keep_features = keep_features
+        self.features = []
 
         channels = {
             4: 512,
@@ -529,15 +530,15 @@ class Discriminator(nn.Module):
     def forward(self, input):
         input = self.dwt(input)
         out = None
-        features = []
+        self.features = []
 
         for from_rgb, conv in zip(self.from_rgbs, self.convs):
             input, out = from_rgb(input, out)
             out = conv(out)  
-            features.append(out) # store the features
+            self.features.append(out) # store the features
             
         _, out = self.from_rgbs[-1](input, out)
-        features.append(out) # store the features
+        self.features.append(out) # store the features
 
         batch, channel, height, width = out.shape
         group = min(batch, self.stddev_group)
@@ -550,13 +551,10 @@ class Discriminator(nn.Module):
         out = torch.cat([out, stddev], 1)
 
         out = self.final_conv(out)
-        features.append(out) # store the features
+        self.features.append(out) # store the features
 
         out = out.view(batch, -1)
         out = self.final_linear(out)
 
-        if self.keep_features:
-            return out, features
-        else:
-            return out
+        return out, self.features
 

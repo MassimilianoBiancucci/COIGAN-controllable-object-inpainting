@@ -7,6 +7,7 @@ from typing import Tuple
 from COIGAN.training.data.augmentation.noise_generators import make_noise_generator
 from COIGAN.training.data.augmentation.noise_generators.base_noise_generator import BaseNoiseGenerator
 
+from COIGAN.utils.debug_utils import check_nan
 
 class MultiscaleNoiseGenerator(BaseNoiseGenerator):
     """
@@ -42,7 +43,7 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
         # check if the strategy is valid
         if strategy not in ["additive", "multiplicative", "replace"]:
             raise ValueError(f"Invalid strategy {strategy}. Valid strategies are: additive, multiplicative, replace.")
-        
+
         # check if the interpolation is valid
         if interpolation not in ["bilinear", "bicubic", "nearest"]:
             raise ValueError(f"Invalid interpolation {interpolation}. Valid interpolations are: bilinear, bicubic, nearest.")
@@ -60,7 +61,7 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
         self.scales = scales
         self.strategy = self.strategy_dict[strategy]
         self.interpolation = interpolation
-        self.align_corners = True if self.interpolation in ["bilinear", "bicubic"] else False
+        self.align_corners = self.interpolation in {"bilinear", "bicubic"}
 
         self.normalize = normalize
 
@@ -76,25 +77,29 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
             torch.Tensor: masks with noise, only where the original masks are > 0
         """
 
-        noise = self.get_noise(masks.shape)
         mask_target = (masks > 0)
+        if mask_target.any():
+            noise = self.get_noise(masks.shape)
 
-        if self.strategy == 0: # additive
-            noise_mask = (masks + noise) * mask_target
+            if self.strategy == 0: # additive
+                noise_mask = (masks + noise) * mask_target
 
-        elif self.strategy == 1: # multiplicative
-            noise_mask = masks * noise
+            elif self.strategy == 1: # multiplicative
+                noise_mask = masks * noise
 
-        elif self.strategy == 2: # replace
-            noise_mask = noise * mask_target
+            elif self.strategy == 2: # replace
+                noise_mask = noise * mask_target
+
+            # normalize the noise to the range [0, 1]
+            if self.normalize:
+                noise_mask_min = noise_mask.min()
+                noise_mask_max = noise_mask.max()
+                noise_mask = ((noise_mask - noise_mask_min) / (noise_mask_max - noise_mask_min)) * mask_target
+
+            return noise_mask
         
-        # normalize the noise to the range [0, 1]
-        if self.normalize:
-            noise_mask_min = noise_mask.min()
-            noise_mask_max = noise_mask.max()
-            noise_mask = ((noise_mask - noise_mask_min) / (noise_mask_max - noise_mask_min)) * mask_target
-        
-        return noise_mask
+        else:
+            return masks
 
 
     def get_noise(self, shape) -> torch.Tensor:
@@ -121,8 +126,7 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
 ##################################################
 ### DEBUG SECTION
 
-if __name__ == "__main__":
-
+def test0():
     from time import time
 
     noise_gen = MultiscaleNoiseGenerator(
@@ -159,3 +163,9 @@ if __name__ == "__main__":
     print(f"Time to generate noise 2: {t1 - t0:.3f} seconds")
 
     print("DONE!")
+
+
+if __name__ == "__main__":
+    test0()
+
+    

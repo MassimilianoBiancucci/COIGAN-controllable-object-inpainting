@@ -3,6 +3,7 @@ import torch
 import logging
 
 from omegaconf import OmegaConf
+from typing import Union
 
 try:
     import wandb
@@ -47,7 +48,8 @@ class DataLogger:
                     OmegaConf.to_container(config, resolve=True)
                 )
                 self.wandb = True
-        
+                self.distributed = config.distributed
+
         # init local 
         self.local_log = False # flag that indicates if local is used
         if logs_dir is not None:
@@ -101,3 +103,29 @@ class DataLogger:
         if self.local_log:
             # TODO save the results on local
             pass
+    
+    def log_weights_and_gradients(self, step_idx: int, model: Union[torch.nn.Module, torch.nn.DataParallel]):
+        """
+            Method that log the weights of the model.
+
+            Args:
+                step_idx (int): current step
+                model (torch.nn.Module or torch.nn.DataParallel): the model
+        """
+        if self.wandb:
+            if self.distributed:
+                # if the model is wrapped in a DataParallel, unwrap it
+                model = model.module
+
+            histograms = {}
+            model_name = model.__class__.__name__
+            for tag, value in model.named_parameters():
+                tag = tag.replace("/", ".")
+                histograms[f"{model_name}_Weights/" + tag] = wandb.Histogram(
+                    value.data.cpu()
+                )
+                histograms[f"{model_name}_Gradients/" + tag] = wandb.Histogram(
+                    value.grad.data.cpu()
+                )
+            
+            wandb.log(histograms, step=step_idx)

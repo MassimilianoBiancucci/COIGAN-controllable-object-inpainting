@@ -12,6 +12,8 @@ from COIGAN.training.data.datasets_loaders.object_dataloader import ObjectDatalo
 
 from COIGAN.training.data.augmentation.noise_generators import make_noise_generator
 
+from COIGAN.utils.debug_utils import check_nan
+
 LOGGER = logging.getLogger(__name__)
 
 class CoiganSeverstalSteelDefectsDataset:

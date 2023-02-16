@@ -66,11 +66,11 @@ class ObjectDataloader:
                 raise ValueError(f"defects_probs must have the same length of sample_defects = {len(self.sample_defects)}.")
             elif sum(defects_probs) != 1:
                 # normalize the defects probabilities
-                LOGGER.warning("The sum of the defects probabilities is not 1. The probabilities will be normalized.")
+                LOGGER.debug("The sum of the defects probabilities is not 1. The probabilities will be normalized.")
                 probs_sum = sum(defects_probs)
-                LOGGER.info(f"defects_probs = {defects_probs}, sum = {probs_sum}")
+                LOGGER.debug(f"defects_probs = {defects_probs}, sum = {probs_sum}")
                 defects_probs = [prob / probs_sum for prob in defects_probs]
-                LOGGER.info(f"normalized_defects_probs = {defects_probs}, sum = {sum(defects_probs)}")
+                LOGGER.debug(f"normalized_defects_probs = {defects_probs}, sum = {sum(defects_probs)}")
 
             self.defects_probs = defects_probs
 

@@ -4,7 +4,7 @@ import logging
 import os
 
 os.environ["HYDRA_FULL_ERROR"] = "1"
-os.environ["TORCH_DISTRIBUTED_DEBUG"] = "INFO"
+os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 
 import torch
 import torch.multiprocessing as mp

@@ -73,10 +73,10 @@ class ShapeObjectDataloader:
             if len(shape_probs) != len(self.sample_shapes):
                 raise ValueError(f"shape_probs must have the same length of sample_shapes = {len(self.sample_shapes)}.")
             elif np.sum(shape_probs) != 1:
-                LOGGER.warning("The sum of the shape_probs must be equal to 1. Normalizing the probabilities...")
+                LOGGER.debug("The sum of the shape_probs must be equal to 1. Normalizing the probabilities...")
                 probs_sum = np.sum(shape_probs)
                 shape_probs = [prob / probs_sum for prob in shape_probs]
-                LOGGER.info(f"New shape_probs: {shape_probs}")
+                LOGGER.debug(f"New shape_probs: {shape_probs}")
             self.shapes_probs = shape_probs
 
         self.tile_size = tile_size if isinstance(tile_size, (list, tuple)) else (tile_size, tile_size)

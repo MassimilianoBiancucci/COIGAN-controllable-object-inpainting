@@ -128,23 +128,19 @@ if __name__ == "__main__":
     import hydra
     from tqdm import tqdm
     from COIGAN.utils.common_utils import sample_data
+    from COIGAN.utils.debug_utils import check_nan
 
-    @hydra.main(config_path="/home/max/thesis/COIGAN-controllable-object-inpainting/configs/training/", config_name="test_train.yaml")
+    @hydra.main(config_path="/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/configs/training/", config_name="test_train.yaml")
     def main_debug(cfg: OmegaConf):
         dataloader = make_dataloader(cfg)
         loader = sample_data(dataloader)
 
-        for i in range(1000):
-            sample = next(loader)
-            print(sample["base"].shape)
-
-        #for sample in tqdm(dataloader):
-            #pass
-            #base = sample["base"]
-            #masks = sample["masks"]
-            #defects = sample["defects"]
-            #defects_masks = sample["defects_masks"]
-
+        for sample in tqdm(dataloader):
+            base_image =        check_nan(sample["base"]) # [base_r, base_g, base_b] the original image without any masking
+            gen_in =            check_nan(sample["gen_input"]) # [base_r, base_g, base_b, mask_0, mask_1, mask_2, mask_3]
+            gen_in_orig_masks = check_nan(sample["orig_gen_input_masks"]) # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
+            disc_in_true =      check_nan(sample["disc_input"])# [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
+            union_mask =        check_nan(sample["gen_input_union_mask"]) # [union_mask] the union mask of all the masks used in the generator input
 
 
     main_debug()

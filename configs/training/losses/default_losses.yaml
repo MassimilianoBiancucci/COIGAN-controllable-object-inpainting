@@ -9,26 +9,25 @@ generator_losses:
   reduction: mean # mean, sum
 
   l1:
-    weight: 10
+    weight: 5
     
-  adversarial: # TODO sistemare i parametri
-    kind: r1
+  adversarial:
     weight: 10
-    gp_coef: 0.001
-    mask_as_fake_target: true
-    allow_scale_mask: true
 
   feature_matching:
-    weight: 100
+    weight: 10
+    n_layers: 4 # number of layers to use for feature matching (starting from the last one)
 
   resnet_pl:
-    weight: 30
+    weight: 5
     weights_path: ${location.loss_models}
 
 # genrator regularitions
 generator_reg:
   g_reg_every: 4 # n steps between 2 generator updarte regularizations
-
+  path_lenght:
+    weight: 5
+    decay: 0.01
 
 ######################################
 ### Discriminator losses parameters
@@ -40,5 +39,4 @@ discriminator_losses:
 discriminator_reg: # TODO sistema i parametri
   d_reg_every: 16 # n steps between 2 discriminator updarte regularizations
   r1:
-    weight: 0.1
-    gp_coef: 0.001
+    weight: 10

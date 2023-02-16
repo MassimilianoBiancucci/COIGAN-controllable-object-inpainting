@@ -1,8 +1,10 @@
 # @package _group_
 generator:
-  kind: adam
-  lr: 0.001
+  kind: adamw # adam or adamw
+  lr: 0.002
+  betas: [0.0, 0.998] # [0.0, 0.99] for adamw
   
 discriminator:
-  kind: adam
-  lr: 0.0001
+  kind: adamw
+  lr: 0.002
+  betas: [0.0, 0.998] # [0.0, 0.99] for adamw

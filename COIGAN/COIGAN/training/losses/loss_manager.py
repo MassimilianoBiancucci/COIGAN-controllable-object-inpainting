@@ -16,7 +16,9 @@ from COIGAN.training.losses.common_losses import (
     g_nonsaturating_loss,
     g_path_regularize
 )
-
+from COIGAN.utils.debug_utils import (
+    check_nan
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +60,7 @@ class CoiganLossManager:
         ##################################################################
         self.gen_loss_reduction = 'mean'
         self.init_generator_losses(**generator_losses)
-        #self.init_generator_regularizations(**generator_reg)
+        self.init_generator_regularizations(**generator_reg)
         self.generator = generator
         self.g_opt = g_optimizer
         
@@ -70,6 +72,104 @@ class CoiganLossManager:
         self.discriminator = discriminator
         self.d_opt = d_optimizer
 
+
+    def init_discriminator_losses(
+        self,
+        logistic: Dict = None
+    ):
+        """
+        Init the discriminator losses.
+
+        Args:
+            lsgan (Dict): the lsgan loss configuration
+            hinge (Dict): the hinge loss configuration
+
+        """
+
+        self.loss_logistic = None
+        if logistic is not None and logistic['weight'] > 0:
+            self.loss_logistic = d_logistic_loss
+            self.loss_logistic_weight = logistic['weight']
+
+
+    def init_discriminator_regularizations(
+        self,
+        d_reg_every: int = 16,
+        r1: Dict = None
+    ):
+        """
+        Discriminator regularization.
+
+        Args:
+            d_reg_every (int): the number of steps between each regularization
+            r1 (Dict): the r1 regularization configurations
+        """
+        self.d_reg_every = d_reg_every
+
+        self.r1_reg = None
+        if r1 is not None and r1['weight'] > 0:
+            self.r1_reg = d_r1_loss
+            self.r1_reg_weight = r1['weight']
+        
+
+    def discriminator_regularization(
+        self,
+        real_pred,
+        real_input
+    ):
+        """
+        Compute the discriminator regularization.
+        NOTE: the real input must have the gradients enabled.
+
+        Args:
+            real_pred (Tensor): the real prediction
+            real_input (Tensor): the real input
+        
+        """
+
+        d_regs = {}
+
+        if self.r1_reg is not None:
+            # NOTE: the real_pred[0] multiplied by 0 is used to include the gradient of the discriminator in the graph, without uue its value
+            # without it ddp will trow an error considering that some gradients in the graph are not used!!!
+            d_regs["d_r1_loss"] = (self.r1_reg(real_pred, real_input) * self.r1_reg_weight * self.d_reg_every + (0 * real_pred[0]))[0]
+            #check_nan(d_regs['d_r1_loss'])
+
+            # apply the regularization
+            self.discriminator.zero_grad()
+            d_regs["d_r1_loss"].backward()
+            self.d_opt.step()
+
+        return d_regs
+
+
+    def discriminator_loss(self, fake_score, real_score):
+        """
+        Compute the discriminator loss.
+
+        Args:
+            fake_score (Tensor): the fake score
+            real_score (Tensor): the real score
+
+        Returns:
+            Tensor: the discriminator loss
+
+        NOTE: there is only one discriminator loss at this time
+            if more losses will be added the method need some changes.
+
+        """
+        discriminator_losses = {}
+        if self.loss_logistic is not None:
+            discriminator_losses["d_logistic_loss"] = self.loss_logistic(real_score, fake_score) * self.loss_logistic_weight
+            #check_nan(discriminator_losses['d_logistic_loss'])
+
+            # update the discriminator
+            self.discriminator.zero_grad()
+            discriminator_losses["d_logistic_loss"].backward()
+            self.d_opt.step()
+        
+        return discriminator_losses
+    
 
     def init_generator_losses(
         self,
@@ -112,6 +212,7 @@ class CoiganLossManager:
         if feature_matching is not None and feature_matching['weight'] > 0:
             self.loss_feature_matching = feature_matching_loss
             self.loss_feature_matching_weight = feature_matching['weight']
+            self.loss_feature_matching_layers = feature_matching['n_layers']
         
         self.loss_resnet_pl = None
         if resnet_pl is not None and resnet_pl['weight'] > 0:
@@ -124,28 +225,10 @@ class CoiganLossManager:
             self.loss_adversarial_weight = adversarial['weight']
 
 
-    def init_discriminator_losses(
-        self,
-        logistic: Dict = None
-    ):
-        """
-        Init the discriminator losses.
-
-        Args:
-            lsgan (Dict): the lsgan loss configuration
-            hinge (Dict): the hinge loss configuration
-
-        """
-
-        self.loss_logistic = None
-        if logistic is not None and logistic['weight'] > 0:
-            self.loss_logistic = d_logistic_loss
-            self.loss_logistic_weight = logistic['weight']
-
-
     def init_generator_regularizations(
         self,
-        g_reg_every: int = 4
+        g_reg_every: int = 4,
+        path_lenght: Dict = None
     ):
         """
         Generator regularization.
@@ -155,83 +238,43 @@ class CoiganLossManager:
         """
         self.g_reg_every = g_reg_every
 
+        self.path_reg = None
+        if path_lenght is not None and path_lenght['weight'] > 0:
+            self.path_reg = g_path_regularize
+            self.path_reg_weight = path_lenght['weight']
+            self.path_reg_decay = path_lenght['decay']
+            self.mean_path_lenght = 0
 
-    def init_discriminator_regularizations(
+
+
+    def generator_regularization(
         self,
-        d_reg_every: int = 16,
-        r1: Dict = None
+        gen_out,
+        gen_in,
+        decay=0.01
     ):
-        """
-        Discriminator regularization.
+        """Compute the generator regularization.
 
         Args:
-            d_reg_every (int): the number of steps between each regularization
-            r1 (Dict): the r1 regularization configurations
-        """
-        self.d_reg_every = d_reg_every
-
-        self.r1_reg = None
-        if r1 is not None and r1['weight'] > 0:
-            self.r1_reg = d_r1_loss
-            self.r1_reg_weight = r1['weight']
-        
-
-    def discriminator_regularization(
-        self,
-        real_input
-    ):
-        """
-        Compute the discriminator regularization.
-        NOTE: the real input must have the gradients enabled.
-
-        Args:
-            real_pred (Tensor): the real prediction
-            real_input (Tensor): the real input
-        
+            gen_out (_type_): _description_
+            gen_in (_type_): _description_
+            mean_path_lenght (_type_): _description_
         """
 
-        d_regs = {}
+        g_regs = {}
 
-        if self.r1_reg is not None:
-            real_input.requires_grad = True
-            disc_out = self.discriminator(real_input)
-            real_pred = disc_out[0] if isinstance(disc_out, tuple) else disc_out # if the discriminator returns the features too
-            d_regs["d_r1_loss"] = self.r1_reg(real_pred, real_input) * self.r1_reg_weight * self.d_reg_every
-            
+        if self.path_reg:
+            path_loss, self.mean_path_lenght, path_lenghts = self.path_reg(gen_out, gen_in, self.mean_path_lenght, decay)
+            g_regs["g_path_loss"] = path_loss * self.path_reg_weight * self.g_reg_every + (0 * gen_out[0, 0, 0, 0])
+            g_regs["g_path_length"] = path_lenghts.mean()
+            g_regs["g_mean_path_length"] = self.mean_path_lenght
+            #check_nan(g_regs)
+
             # apply the regularization
-            self.discriminator.zero_grad()
-            d_regs["d_r1_loss"].backward()
-            self.d_opt.step()
-
-        return d_regs
-
-
-    def discriminator_loss(self, fake_score, real_score):
-        """
-        Compute the discriminator loss.
-
-        Args:
-            fake_score (Tensor): the fake score
-            real_score (Tensor): the real score
-
-        Returns:
-            Tensor: the discriminator loss
-
-        NOTE: there is only one discriminator loss at this time
-            if more losses will be added the method need some changes.
-
-        """
-        discriminator_losses = {}
-        if self.loss_logistic is not None:
-            discriminator_losses["d_logistic_loss"] = self.loss_logistic(real_score, fake_score) * self.loss_logistic_weight
-
-            # update the discriminator
-            self.discriminator.zero_grad()
-            discriminator_losses["d_logistic_loss"].backward()
-            self.d_opt.step()
+            self.generator.zero_grad()
+            g_regs["g_path_loss"].backward()
+            self.g_opt.step()
         
-        return discriminator_losses
-    
 
     def generator_loss(self, fake, real, fake_features, real_features, disc_fake_out):
         """
@@ -258,7 +301,10 @@ class CoiganLossManager:
         if self.loss_resnet_pl is not None:
             generator_losses["loss_resnet_pl"] = self.loss_resnet_pl(fake, real) * self.loss_resnet_pl_weight
         if self.loss_feature_matching is not None:
-            generator_losses["g_loss_fm"] = self.loss_feature_matching(fake_features, real_features) * self.loss_feature_matching_weight
+            generator_losses["g_loss_fm"] = self.loss_feature_matching(
+                fake_features[self.loss_feature_matching_layers:], 
+                real_features[self.loss_feature_matching_layers:]
+            ) * self.loss_feature_matching_weight
         if self.loss_adversarial is not None:
             generator_losses["g_loss_adv"] = self.loss_adversarial(disc_fake_out) * self.loss_adversarial_weight
 
@@ -266,6 +312,8 @@ class CoiganLossManager:
             generator_losses["g_loss"] = torch.mean(torch.stack(list(generator_losses.values())))
         elif self.gen_loss_reduction == 'sum':
             generator_losses["g_loss"] = torch.sum(torch.stack(list(generator_losses.values())))
+
+        #check_nan(generator_losses)
 
         # update the generator
         self.generator.zero_grad()

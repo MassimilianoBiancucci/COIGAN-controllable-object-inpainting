@@ -40,7 +40,6 @@ object_datasets:
     - defect_1
     - defect_2
     - defect_3
-
   binary: true # specify if the datasets are binary format or stright json
 
 # shape dataloader parameters
