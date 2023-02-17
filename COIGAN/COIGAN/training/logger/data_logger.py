@@ -21,6 +21,7 @@ class DataLogger:
     def __init__(
         self,
         logs_dir: str = None,
+        log_weights_interval: int = 1000,
         enable_wandb: bool = False,
         wandb_kwargs: dict = None,
         config: OmegaConf = None,
@@ -29,9 +30,16 @@ class DataLogger:
             Init the DataLogger class.
 
             Args:
+                logs_dir (str): the directory where the logs are saved.
+                log_weights_interval (int): the interval between two weights and gradients logging,
+                    NOTE: this value only state every how many calls of "log_weights_and_gradients()" it actually log it.
+                    This solve a little desincronization that can happen in the training pipeline.
                 enable_wandb (bool): if True wandb is used. Otherwise the wandb initialization is skipped.
                 wandb_kwargs (dict): the wandb kwargs. If None, wandb is not used.
         """
+
+        self.log_weights_interval = log_weights_interval
+        self.log_weights_counter = 0
 
         # init wandb
         self.wandb = False # flag that indicates if wandb is used
@@ -104,7 +112,8 @@ class DataLogger:
             # TODO save the results on local
             pass
     
-    def log_weights_and_gradients(self, step_idx: int, model: Union[torch.nn.Module, torch.nn.DataParallel]):
+    
+    def log_weights_and_gradients(self, model: Union[torch.nn.Module, torch.nn.DataParallel]):
         """
             Method that log the weights of the model.
 
@@ -112,7 +121,9 @@ class DataLogger:
                 step_idx (int): current step
                 model (torch.nn.Module or torch.nn.DataParallel): the model
         """
-        if self.wandb:
+        if self.wandb and \
+            self.log_weights_counter % self.log_weights_interval == 0:
+            
             if self.distributed:
                 # if the model is wrapped in a DataParallel, unwrap it
                 model = model.module
@@ -127,5 +138,8 @@ class DataLogger:
                 histograms[f"{model_name}_Gradients/" + tag] = wandb.Histogram(
                     value.grad.data.cpu()
                 )
-            
-            wandb.log(histograms, step=step_idx)
+
+            wandb.log(histograms)
+
+        # increment the counter
+        self.log_weights_counter += 1

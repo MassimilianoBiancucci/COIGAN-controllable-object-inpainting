@@ -63,7 +63,7 @@ class COIGANtrainer:
 
         # load the data logger variables
         self.log_img_interval = self.config.log_img_interval
-        self.log_weights_interval = self.config.log_weights_interval
+        self.log_shapes_and_defects = self.config.log_shapes_and_defects
 
         # load checkpoint out path
         self.checkpoint_path = self.config.location.checkpoint_dir
@@ -168,7 +168,7 @@ class COIGANtrainer:
         }
 
         path = os.path.join(self.checkpoint_path, f"{step_idx}.pt")
-        torch.save(ckpt, self.checkpoint_path)
+        torch.save(ckpt, path)
 
 
     def train(self):
@@ -260,13 +260,7 @@ class COIGANtrainer:
                 disc_loss = self.loss_mng.discriminator_loss(disc_out_fake, disc_out_true)
 
                 # apply regularization to the discriminator
-                if i % self.loss_mng.d_reg_every == 0:
-
-                    disc_in_true.requires_grad = True
-                    disc_out_true, _ = self.discriminator(disc_in_true)
-
-                    d_reg_losses = self.loss_mng.discriminator_regularization(disc_out_true, disc_in_true)
-                    disc_loss.update(d_reg_losses)
+                disc_loss.update(self.loss_mng.discriminator_regularization(disc_in_true))
 
                 # determine the next turn owner
                 self.d_step += 1
@@ -314,13 +308,11 @@ class COIGANtrainer:
                     disc_out_fake
                 )
 
-                #if self.device == 0:
-                #    self.datalogger.log_weights_and_gradients(i, self.generator)
+                if self.device == 0 :
+                    self.datalogger.log_weights_and_gradients(self.generator)
 
-                # apply regularization to the generator
-                if i % self.loss_mng.g_reg_every == 0:
-                    g_reg_losses = self.loss_mng.generator_regularization(disc_out_fake, disc_fake_features)
-                    gen_loss.update(g_reg_losses)
+                # apply regularization to the generator, and saving the results in the gen_loss dict if present
+                gen_loss.update(self.loss_mng.generator_regularization(gen_in))
 
                 # update the moving average generator
                 # self.update_average_generator()
@@ -373,9 +365,10 @@ class COIGANtrainer:
                     }
 
                     # add the shapes for each class
-                    for j in range(gen_in_orig_masks.shape[1]):
-                        visual_results[f"shape_{j}"] = self.make_grid(gen_in_orig_masks[:, j].unsqueeze(1))
-                        visual_results[f"defect_{j}"] = self.make_grid(disc_in_true[:, j*3:(j+1)*3])
+                    if self.log_shapes_and_defects:
+                        for j in range(gen_in_orig_masks.shape[1]):
+                            visual_results[f"shape_{j}"] = self.make_grid(gen_in_orig_masks[:, j].unsqueeze(1))
+                            visual_results[f"defect_{j}"] = self.make_grid(disc_in_true[:, j*3:(j+1)*3])
 
 
                     self.datalogger.log_visual_results(i, visual_results)

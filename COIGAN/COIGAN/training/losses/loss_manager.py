@@ -58,7 +58,6 @@ class CoiganLossManager:
         ##################################################################
         ### Generator losses
         ##################################################################
-        self.gen_loss_reduction = 'mean'
         self.init_generator_losses(**generator_losses)
         self.init_generator_regularizations(**generator_reg)
         self.generator = generator
@@ -105,6 +104,7 @@ class CoiganLossManager:
             r1 (Dict): the r1 regularization configurations
         """
         self.d_reg_every = d_reg_every
+        self.d_reg_steps_count = 0
 
         self.r1_reg = None
         if r1 is not None and r1['weight'] > 0:
@@ -114,9 +114,8 @@ class CoiganLossManager:
 
     def discriminator_regularization(
         self,
-        real_pred,
         real_input
-    ):
+    ):  # sourcery skip: extract-method, merge-nested-ifs, swap-nested-ifs
         """
         Compute the discriminator regularization.
         NOTE: the real input must have the gradients enabled.
@@ -129,17 +128,24 @@ class CoiganLossManager:
 
         d_regs = {}
 
-        if self.r1_reg is not None:
-            # NOTE: the real_pred[0] multiplied by 0 is used to include the gradient of the discriminator in the graph, without uue its value
-            # without it ddp will trow an error considering that some gradients in the graph are not used!!!
-            d_regs["d_r1_loss"] = (self.r1_reg(real_pred, real_input) * self.r1_reg_weight * self.d_reg_every + (0 * real_pred[0]))[0]
-            #check_nan(d_regs['d_r1_loss'])
+        if self.d_reg_steps_count % self.d_reg_every == 0:
+            if self.r1_reg is not None:
+                
+                real_input.requires_grad = True
+                real_pred = self.discriminator(real_input)
+                real_pred = real_pred[0] if isinstance(real_pred, tuple) else real_pred
 
-            # apply the regularization
-            self.discriminator.zero_grad()
-            d_regs["d_r1_loss"].backward()
-            self.d_opt.step()
+                # NOTE: the real_pred[0] multiplied by 0 is used to include the gradient of the discriminator in the graph, without uue its value
+                # without it ddp will trow an error considering that some gradients in the graph are not used!!!
+                d_regs["d_r1_loss"] = (self.r1_reg(real_pred, real_input) * self.r1_reg_weight * self.d_reg_every + (0 * real_pred[0]))[0]
+                #check_nan(d_regs['d_r1_loss'])
 
+                # apply the regularization
+                self.discriminator.zero_grad()
+                d_regs["d_r1_loss"].backward()
+                self.d_opt.step()
+
+        self.d_reg_steps_count += 1
         return d_regs
 
 
@@ -237,6 +243,7 @@ class CoiganLossManager:
             g_reg_every (int): the number of steps between each regularization
         """
         self.g_reg_every = g_reg_every
+        self.g_reg_steps_count = 0
 
         self.path_reg = None
         if path_lenght is not None and path_lenght['weight'] > 0:
@@ -249,31 +256,37 @@ class CoiganLossManager:
 
     def generator_regularization(
         self,
-        gen_out,
-        gen_in,
-        decay=0.01
-    ):
-        """Compute the generator regularization.
+        gen_in
+    ):  # sourcery skip: extract-method, merge-nested-ifs
+        """
+        Compute the generator regularization.
+
 
         Args:
-            gen_out (_type_): _description_
-            gen_in (_type_): _description_
-            mean_path_lenght (_type_): _description_
+            gen_in (torch.Tensor): the generator input tensor.
         """
 
         g_regs = {}
 
-        if self.path_reg:
-            path_loss, self.mean_path_lenght, path_lenghts = self.path_reg(gen_out, gen_in, self.mean_path_lenght, decay)
-            g_regs["g_path_loss"] = path_loss * self.path_reg_weight * self.g_reg_every + (0 * gen_out[0, 0, 0, 0])
-            g_regs["g_path_length"] = path_lenghts.mean()
-            g_regs["g_mean_path_length"] = self.mean_path_lenght
-            #check_nan(g_regs)
+        if self.g_reg_steps_count % self.g_reg_every == 0:
+            if self.path_reg:
+                
+                gen_in.requires_grad = True
+                gen_out = self.generator(gen_in)
+                
+                path_loss, self.mean_path_lenght, path_lenghts = self.path_reg(gen_out, gen_in, self.mean_path_lenght, self.path_reg_decay)
+                g_regs["g_path_loss"] = path_loss * self.path_reg_weight * self.g_reg_every + (0 * gen_out[0, 0, 0, 0])
+                g_regs["g_path_length"] = path_lenghts.mean()
+                g_regs["g_mean_path_length"] = self.mean_path_lenght
+                #check_nan(g_regs)
 
-            # apply the regularization
-            self.generator.zero_grad()
-            g_regs["g_path_loss"].backward()
-            self.g_opt.step()
+                # apply the regularization
+                self.generator.zero_grad()
+                g_regs["g_path_loss"].backward()
+                self.g_opt.step()
+
+        self.g_reg_steps_count += 1
+        return g_regs
         
 
     def generator_loss(self, fake, real, fake_features, real_features, disc_fake_out):

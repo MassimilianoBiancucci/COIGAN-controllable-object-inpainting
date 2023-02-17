@@ -21,12 +21,15 @@ distributed: True # enable distributed training
 ################################################
 
 enable_wandb: True # enable wandb logging, if False no logging will be performed on the cloud
-log_img_interval: 1001 # steps interval between each output visualization
-log_weights_interval: 1001 # steps interval between each weights visualization
+log_img_interval: 500 # steps interval between each output visualization
+log_weights_interval: 500 # steps interval between each weights visualization
 checkpoint_interval: 10000 # steps interval between each checkpoint
 
 concat_mask: true
-store_discr_outputs_for_vis: true
+
+# logging other options
+log_shapes_and_defects: false # enable the logging of input shapes and defects during the images logging
+
 
 defaults:
   - location: default_locations

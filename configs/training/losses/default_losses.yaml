@@ -6,13 +6,13 @@
 ######################################
 ### Generator losses parameters
 generator_losses:
-  reduction: mean # mean, sum
+  reduction: sum # mean, sum
 
   l1:
     weight: 5
     
   adversarial:
-    weight: 10
+    weight: 15
 
   feature_matching:
     weight: 10
@@ -33,7 +33,7 @@ generator_reg:
 ### Discriminator losses parameters
 discriminator_losses:
   logistic:
-    weight: 1
+    weight: 5
 
 # discriminator regularitions
 discriminator_reg: # TODO sistema i parametri
