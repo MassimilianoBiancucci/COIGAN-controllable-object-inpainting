@@ -11,7 +11,8 @@ requirements = [
     "hydra-core==1.2",
     "omegaconf==2.2.3",
     "kornia==0.6.8",
-    "pandas==1.5.0"
+    "pandas==1.5.0",
+    "scipy==1.9.1"
 ]
 
 test_requirements = []
