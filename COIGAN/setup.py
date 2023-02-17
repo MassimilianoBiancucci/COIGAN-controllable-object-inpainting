@@ -3,18 +3,21 @@
 from setuptools import setup, find_packages
 
 requirements = [
-    "kaggle==1.5.12"
+    "kaggle==1.5.12",
     "numpy==1.23.3",
-    "opencv-python-headless",
+    "opencv-python-headless==4.6.0.66",
     "wandb==0.13.7",
-    "torch==1.12.1+cu116",
     "pbjson==1.15",
-    "hydra==1.2.0",
+    "hydra-core==1.2",
     "omegaconf==2.2.3",
-
+    "kornia==0.6.8",
+    "pandas==1.5.0"
 ]
 
 test_requirements = []
+
+dependency_links = [
+]
 
 setup(
     author="Massimiliano Biancucci",
@@ -40,16 +43,18 @@ setup(
             "modules.*",
             "training",
             "training.*",
+            "inference",
+            "inference.*",
             "shape_training",
             "shape_training.*",
             "utils",
             "utils.*",
         ]
     ),
-    dependency_links=[],
+    dependency_links=dependency_links,
     test_suite="tests",
     tests_require=test_requirements,
-    url="https://github.com/cloe-ai/Defect-Unet-api",
+    url="https://github.com/MassimilianoBiancucci/COIGAN-controllable-object-inpainting",
     version="0.1.0",
     zip_safe=False,
 )

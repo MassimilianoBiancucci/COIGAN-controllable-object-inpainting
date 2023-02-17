@@ -89,15 +89,15 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
 
             elif self.strategy == 2: # replace
                 noise_mask = noise * mask_target
-
+            
             # normalize the noise to the range [0, 1]
             if self.normalize:
-                noise_mask_min = noise_mask.min()
-                noise_mask_max = noise_mask.max()
+                noise_mask_min = min(0, noise_mask.min())
+                noise_mask_max = max(1, noise_mask.max())
                 noise_mask = ((noise_mask - noise_mask_min) / (noise_mask_max - noise_mask_min)) * mask_target
 
             return noise_mask
-        
+
         else:
             return masks
 

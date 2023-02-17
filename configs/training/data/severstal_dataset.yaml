@@ -66,8 +66,8 @@ coigan_dataset_kwargs:
       base_generator_kwargs:
         kind: gaussian
         kind_kwargs:
-          mean: 0.0
-          std: 0.1
+          mean: ${input_masks_noise_mean}
+          std: ${input_masks_noise_std}
 
 torch_dataloader_kwargs:
   batch_size: ${data.batch_size}

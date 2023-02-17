@@ -13,6 +13,32 @@ Project that aim to realize a GAN model capable of coherent objects inpainting i
 TODO add here some graphs and images...
 
 # Install the COIGAN module
+In this section is expleined how to install the COIGAN module in your system, with all his dependencies.
+
+### Create a virtual environment
+A suggested approch is to create a virtual environment and install the module and his dependencies in it, to avoid conflicts with other projects.
+To create a virtual environment you can use the following commands:
+```bash
+cd /<project_target_path>/COIGAN-controllable-object-inpainting
+python3 -m venv .env
+source .env/bin/activate
+
+# here you can install the module and his dependencies...
+
+# to deactivate the virtual environment
+deactivate
+```
+### Install torch and torchvision
+The project is tested with CUDA 11.5, and with the following version of torch and torchvision:
+- torch 1.2.1+cu116
+- torchvision 0.13.10.13.1+cu116
+
+You can install these versions with the following command, considering a Linux system with CUDA 11.6 or 11.5 installed:
+```bash
+pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+```
+
+### Install the COIGAN module
 To install the COIGAN module you need to clone the repo and install it with pip, so follow the commands listed below to install the module in your system:
 
 ```bash
@@ -58,6 +84,7 @@ Now you need to retrive the username and the API-KEY and follow one of the follo
     ```
 
 If you have any trouble with the kaggle api setup, refer to this link where the procedure is explained in detail: [Kaggle api repo](https://github.com/Kaggle/kaggle-api) or follow the option 3.
+</br></br>
 
 ## Run the dataset preparation script
 The first thing to do before launch the preparation script is to change the var **repo_dir** to the path of the repo in your local es: 
@@ -71,6 +98,7 @@ the var is present inside the config file:
 ```yaml
 /home/ubuntu/COIGAN-controllable-object-inpainting/configs/data_preparation/severstal_dataset_preparation.yaml
 ```
+</br></br>
 
 ### Data preparation settings
 In this section are explained the principal variables of the dataset preparation script, to customize the dataset generated.
@@ -91,11 +119,11 @@ Here the more interesting variables:
 - **test_ratio**: Specify how many samples will be placed in the test set from the original dataset, the value must be between 0 and 1.
 - **black_threshold**: From the train dataset will extracted the samples without defects, to create a base dataset used as base for the inpainting process, but in the dataset there are images with big black areas, not suitable for the process, so this parameter specify the threshold used to segment the black area (consider 0 is totally black and 255 is totally white).
 - **black_area_max_coverage**: Specify the maximum allowed extension of the black area on a sample, if greather than this value the sample won't be added to the base dataset.
-
+</br></br>
 
 # Train a COIGAN model
-
 Before running the coigan training there are a few things to do, other than the dataset preparation. One step is to download the model used for the perceptual loss, and you need to review the training settings, changing the path of the COIGAN repo in the training configs.
+</br>
 
 ## Download the needed models
 For running the COIGAN training script and use the Resnet perceptual loss, you need to download the resnet50 model from the MIT Scene Parsing Benchmark dataset, you can download it running the script `download_models_loss.py` in the `COIGAN-controllable-object-inpainting/scripts` folder. NOTE: you should change the var `repo_dir` in the script to the path of the repo in your local es: 
