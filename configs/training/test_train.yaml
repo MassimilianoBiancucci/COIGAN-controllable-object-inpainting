@@ -8,13 +8,15 @@ checkpoint: null # path to the checkpoint file to load
 start_iter: 0
 max_iter: 800000
 
-batch_size: 8 # batch size for each training process
+batch_size: 10 # batch size for each training process
 num_workers: 4 # dataloader workers
 
 gen_steps: 1 # define how many steps to train the generator before give the turn to the discriminator
 disc_steps: 1 # define how many steps to train the discriminator before give the turn to the generator
 
 use_ema: False # use exponential moving average for the generator
+
+mask_base_img: False # If true zero out the base image where the concat masks are 1s, for the input_base_img and for the generator output
 
 ################################################
 distributed: True # enable distributed training
@@ -25,7 +27,6 @@ log_img_interval: 500 # steps interval between each output visualization
 log_weights_interval: 500 # steps interval between each weights visualization
 checkpoint_interval: 10000 # steps interval between each checkpoint
 
-concat_mask: true
 
 # logging other options
 log_shapes_and_defects: false # enable the logging of input shapes and defects during the images logging

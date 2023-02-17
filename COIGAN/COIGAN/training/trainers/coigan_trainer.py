@@ -68,6 +68,9 @@ class COIGANtrainer:
         # load checkpoint out path
         self.checkpoint_path = self.config.location.checkpoint_dir
 
+        # other process variables
+        self.mask_base_img = self.config.mask_base_img
+
         # create the generator, discriminator and EMA generator
         self.generator = make_generator(**config.generator).to(rank)
         self.discriminator = make_discriminator(**config.discriminator).to(rank)
@@ -294,8 +297,9 @@ class COIGANtrainer:
                 # prepare the base image and the generated base image for the generator loss
                 base_image_4loss = gen_in[:, :3, :, :] # load the image from the gen_in tensor, so if there are masked defects, the mask is already applied.
                 fake_image_4loss = fake_image.clone() # TODO verify if a copy is needed
-                if self.config.data.mask_base_img:
-                    # if the mase img is masked remove the defects from the generated img
+                if self.mask_base_img:
+                    # if the base img is masked remove the defects from the generated img
+                    # otherwise the generated defects will be present in the preceptual, l1, mse, etc losses
                     fake_image_4loss[union_mask.unsqueeze(1).repeat(1, 3, 1, 1) > 0] = 0
                     
 

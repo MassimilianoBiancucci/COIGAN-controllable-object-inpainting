@@ -13,8 +13,8 @@ seed: 42 # seed for the dataset shuffling
 # and defects in input to the discriminator, probably discouragable with feature_matching loss with high weight.
 differet_shapes: False ########################################################################################
 
-allow_overlap: false # allow overlap between objects in input masks and on the gt objects
-mask_base_img: true # if true zero out the base image where the concat masks are 1s
+allow_overlap: false # allow overlap between objects in input masks and on the gt objects # WARNING True not implemented yet!
+mask_base_img: ${mask_base_img} # if true zero out the base image where the concat masks are 1s
 
 kind: ${data.dataset_name}
 
