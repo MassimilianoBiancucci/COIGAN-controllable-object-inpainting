@@ -387,7 +387,7 @@ def create_base_dataset(config: OmegaConf):
     ).convert()
 
 
-@hydra.main(config_path='../configs/data_preparation', config_name='severstal_dataset_preparation.yaml')
+@hydra.main(config_path='../configs/data_preparation', config_name='severstal_dataset_preparation.yaml', version_base="1.1")
 def main(config: OmegaConf):
     """
         Script that load the Severstal steel defect dataset and prepare it for the trianing pipeline.

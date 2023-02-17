@@ -60,8 +60,8 @@ split_mode: fair # specify the splitting mode, random or fair
 dataset_splitter_kwargs:
   dataset_path: ${jsonl_dataset_dir}
   output_dir: ${dataset_dir}/${dataset_name}
-  train_ratio: 0.2
-  test_ratio: 0.8
+  train_ratio: 0.3
+  test_ratio: 0.7
   binary: ${binary}
   target_field: polygons # needed for the fair splitting (ignored for the random splitting)
   tile_size: ${original_tile_size}
@@ -111,7 +111,7 @@ base_dataset_generator_kwargs:
 base_evaluator_kwargs:
   black_threshold: 10
   black_area_max_coverage: 0.1
-  debug: True
+  debug: False
 
 defaults:
   - hydra: severstal_overrides

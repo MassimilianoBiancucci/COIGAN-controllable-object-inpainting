@@ -130,11 +130,11 @@ class BaseDatasetGenerator:
         images = []
 
         nh_tiles = np.ceil(tile_size[0])
-        h_offset = np.floor((h-tile_size[0])/(nh_tiles-1)).astype(np.int) \
+        h_offset = np.floor((h-tile_size[0])/(nh_tiles-1)).astype(np.int32) \
             if h - tile_size[0] > 0 else tile_size[0]
 
         nw_tiles = np.ceil(w/tile_size[1])
-        w_offset = np.floor((w-tile_size[1])/(nw_tiles-1)).astype(np.int) \
+        w_offset = np.floor((w-tile_size[1])/(nw_tiles-1)).astype(np.int32) \
             if w - tile_size[1] > 0 else tile_size[1]
 
         for i in range(0, h, h_offset):

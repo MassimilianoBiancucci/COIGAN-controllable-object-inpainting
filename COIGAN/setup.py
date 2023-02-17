@@ -3,10 +3,15 @@
 from setuptools import setup, find_packages
 
 requirements = [
-    "numpy",
+    "kaggle==1.5.12"
+    "numpy==1.23.3",
     "opencv-python-headless",
-    "wandb",
-    "torch",
+    "wandb==0.13.7",
+    "torch==1.12.1+cu116",
+    "pbjson==1.15",
+    "hydra==1.2.0",
+    "omegaconf==2.2.3",
+
 ]
 
 test_requirements = []
