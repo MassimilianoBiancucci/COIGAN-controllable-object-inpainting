@@ -222,7 +222,7 @@ class COIGANtrainer:
             #get the data
             sample = next(loader)
 
-            check_nan(sample)
+            #check_nan(sample)
 
             #unpack the data
             base_image = sample["base"] # [base_r, base_g, base_b] the original image without any masking
@@ -230,11 +230,6 @@ class COIGANtrainer:
             gen_in_orig_masks = sample["orig_gen_input_masks"] # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
             disc_in_true = sample["disc_input"].to(self.device) # [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
             union_mask = sample["gen_input_union_mask"] # [union_mask] the union mask of all the masks used in the generator input
-
-            disc_scores = {}
-            disc_loss = {}
-            gen_loss = {}
-            metrics = {}
 
             #######################################################################################
             #######################################################################################
@@ -254,16 +249,16 @@ class COIGANtrainer:
                 disc_out_true, disc_true_features = self.discriminator(disc_in_true)
                 disc_out_fake, disc_fake_features = self.discriminator(disc_in_fake)
 
-                disc_scores = {
+                self.loss_mng.metrics.update({
                     "real_score": disc_out_true.mean(),
                     "fake_score": disc_out_fake.mean(),
-                }
+                })
 
                 # compute the discriminator losses
-                disc_loss = self.loss_mng.discriminator_loss(disc_out_fake, disc_out_true)
+                self.loss_mng.discriminator_loss(disc_out_fake, disc_out_true)
 
                 # apply regularization to the discriminator
-                disc_loss.update(self.loss_mng.discriminator_regularization(disc_in_true))
+                self.loss_mng.discriminator_regularization(disc_in_true)
 
                 # determine the next turn owner
                 self.d_step += 1
@@ -289,10 +284,10 @@ class COIGANtrainer:
                 disc_out_true, disc_true_features = self.discriminator(disc_in_true)
                 disc_out_fake, disc_fake_features = self.discriminator(disc_in_fake)
                 
-                disc_scores = {
+                self.loss_mng.metrics.update({
                     "real_score": disc_out_true.mean(),
                     "fake_score": disc_out_fake.mean(),
-                }
+                })
 
                 # prepare the base image and the generated base image for the generator loss
                 base_image_4loss = gen_in[:, :3, :, :] # load the image from the gen_in tensor, so if there are masked defects, the mask is already applied.
@@ -304,7 +299,7 @@ class COIGANtrainer:
                     
 
                 # compute the generator losses
-                gen_loss = self.loss_mng.generator_loss(
+                self.loss_mng.generator_loss(
                     fake_image_4loss, # TODO add setting to manage if the defects must be masked or not
                     base_image_4loss, # TODO add setting to manage if the defects must be masked or not
                     disc_fake_features,
@@ -316,7 +311,7 @@ class COIGANtrainer:
                     self.datalogger.log_weights_and_gradients(self.generator)
 
                 # apply regularization to the generator, and saving the results in the gen_loss dict if present
-                gen_loss.update(self.loss_mng.generator_regularization(gen_in))
+                self.loss_mng.generator_regularization(gen_in)
 
                 # update the moving average generator
                 # self.update_average_generator()
@@ -327,14 +322,10 @@ class COIGANtrainer:
                     self.g_step = 0
                     self.turn = True
 
-            metrics.update(disc_scores)
-            metrics.update(disc_loss)
-            metrics.update(gen_loss)
-
             #if there_is_nan(metrics):
             #    raise ValueError("NaN detected in the metrics")
 
-            reduced_metrics = reduce_loss_dict(metrics)
+            reduced_metrics = reduce_loss_dict(self.loss_mng.metrics)
 
             #######################################################################################
             #######################################################################################
