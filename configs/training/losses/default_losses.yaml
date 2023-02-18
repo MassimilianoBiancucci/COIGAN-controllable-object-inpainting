@@ -12,7 +12,7 @@ generator_losses:
     weight: 5
     
   adversarial:
-    weight: 15
+    weight: 20
 
   feature_matching:
     weight: 10

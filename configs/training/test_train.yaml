@@ -9,7 +9,7 @@ start_iter: 0
 max_iter: 800000
 
 batch_size: 8 # batch size for each training process
-num_workers: 4 # dataloader workers
+num_workers: 6 # dataloader workers
 
 gen_steps: 1 # define how many steps to train the generator before give the turn to the discriminator
 disc_steps: 1 # define how many steps to train the discriminator before give the turn to the generator
@@ -23,7 +23,7 @@ input_masks_noise_std: 0.05
 input_masks_noise_mean: 0.5
 
 ################################################
-distributed: False # enable distributed training
+distributed: True # enable distributed training
 ################################################
 
 enable_wandb: True # enable wandb logging, if False no logging will be performed on the cloud

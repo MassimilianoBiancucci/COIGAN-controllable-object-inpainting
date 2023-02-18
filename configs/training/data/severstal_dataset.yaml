@@ -62,7 +62,7 @@ coigan_dataset_kwargs:
     kind_kwargs:
       interpolation: bilinear
       strategy: replace
-      scales: [1, 3, 6, 12, 24]
+      scales: [1, 3, 6, 12]
       base_generator_kwargs:
         kind: gaussian
         kind_kwargs:
