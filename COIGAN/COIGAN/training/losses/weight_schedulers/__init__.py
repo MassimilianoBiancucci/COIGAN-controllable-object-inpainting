@@ -1,0 +1,2 @@
+from COIGAN.training.losses.weight_schedulers.weight_scheduler_base import WeightSchedulerBase
+from COIGAN.training.losses.weight_schedulers.weight_scheduler_linear import WeightSchedulerLinear

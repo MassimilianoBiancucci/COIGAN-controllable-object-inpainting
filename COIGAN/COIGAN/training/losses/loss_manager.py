@@ -253,7 +253,6 @@ class CoiganLossManager:
             self.mean_path_lenght = 0
 
 
-
     def generator_regularization(
         self,
         gen_in
@@ -287,7 +286,7 @@ class CoiganLossManager:
 
         self.g_reg_steps_count += 1
         return g_regs
-        
+
 
     def generator_loss(self, fake, real, fake_features, real_features, disc_fake_out):
         """
