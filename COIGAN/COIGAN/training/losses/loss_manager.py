@@ -54,6 +54,7 @@ class CoiganLossManager:
         """
 
         self.device = device
+        self.metrics = {}
 
         ##################################################################
         ### Generator losses
@@ -146,7 +147,7 @@ class CoiganLossManager:
                 self.d_opt.step()
 
         self.d_reg_steps_count += 1
-        return d_regs
+        self.metrics.update(d_regs)
 
 
     def discriminator_loss(self, fake_score, real_score):
@@ -174,7 +175,7 @@ class CoiganLossManager:
             discriminator_losses["d_logistic_loss"].backward()
             self.d_opt.step()
         
-        return discriminator_losses
+        self.metrics.update(discriminator_losses)
     
 
     def init_generator_losses(
@@ -285,7 +286,7 @@ class CoiganLossManager:
                 self.g_opt.step()
 
         self.g_reg_steps_count += 1
-        return g_regs
+        self.metrics.update(g_regs)
 
 
     def generator_loss(self, fake, real, fake_features, real_features, disc_fake_out):
@@ -332,4 +333,4 @@ class CoiganLossManager:
         generator_losses["g_loss"].backward()
         self.g_opt.step()
 
-        return generator_losses
+        self.metrics.update(generator_losses)

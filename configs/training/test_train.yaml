@@ -19,8 +19,9 @@ use_ema: False # use exponential moving average for the generator
 mask_base_img: False # If true zero out the base image where the concat masks are 1s, for the input_base_img and for the generator output
 
 # input noise masks parameters
-input_masks_noise_std: 0.05
-input_masks_noise_mean: 0.5
+input_masks_noise_std: 0.8 # standard deviation of the gaussian noise applied to the input masks
+input_masks_noise_mean: 0.5 # mean of the gaussian noise applied to the input masks
+input_masks_noise_smooth: 41 # size of gaussian filter applied to the noise masks
 
 ################################################
 distributed: True # enable distributed training
