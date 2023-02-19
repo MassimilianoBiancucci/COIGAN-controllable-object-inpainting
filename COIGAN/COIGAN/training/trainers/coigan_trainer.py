@@ -94,6 +94,11 @@ class COIGANtrainer:
         os.makedirs(config.location.checkpoint_dir, exist_ok=True)
 
         if self.config.distributed:
+            # if distributed, save a reference of the modules of the generator and discriminator
+            # outside the data parallel wrapper, will be used for save the checkpoint
+            self.g_module = self.generator.module
+            self.d_module = self.discriminator.module
+
             self.generator = nn.parallel.DistributedDataParallel(
                 self.generator,
                 device_ids=[self.device],
@@ -108,6 +113,12 @@ class COIGANtrainer:
                 broadcast_buffers=False,
                 #find_unused_parameters=True
             )
+            
+        else:
+            # if not distributed, save a reference of the modules of the generator and discriminator
+            # anyway will be used for save the checkpoint
+            self.g_module = self.generator
+            self.d_module = self.discriminator
         
         # load the loss manager
         self.loss_mng = CoiganLossManager(
@@ -139,7 +150,7 @@ class COIGANtrainer:
         ckpt = torch.load(checkpoint_path, map_location=lambda storage, loc: storage)
 
         try:
-            ckpt_name = os.path.basename(self.config.ckpt)
+            ckpt_name = os.path.basename(checkpoint_path)
             with read_write(self.config):
                 self.config.start_iter = int(os.path.splitext(ckpt_name)[0])
         except ValueError:
@@ -163,8 +174,8 @@ class COIGANtrainer:
         """
         LOGGER.info(f"Saving checkpoint: {self.checkpoint_path}/{step_idx}.pt")
         ckpt = {
-            "g": self.generator.state_dict(),
-            "d": self.discriminator.state_dict(),
+            "g": self.g_module.state_dict(),
+            "d": self.d_module.state_dict(),
             #"g_ema": self.g_ema.state_dict(),
             "g_optim": self.g_optim.state_dict(),
             "d_optim": self.d_optim.state_dict(),
@@ -185,14 +196,6 @@ class COIGANtrainer:
         # create the progress bar
         if get_rank() == 0:
             pbar = tqdm(range(self.config.max_iter), initial=self.config.start_iter, dynamic_ncols=True, smoothing=0.01)
-
-        # if distributed, get the module of the generator and discriminator from the DataParallel wrapper
-        if self.config.distributed:
-            self.g_module = self.generator.module
-            self.d_module = self.discriminator.module
-        else:
-            self.g_module = self.generator
-            self.d_module = self.discriminator
         
         # setup_training training pipeline variables
         # used to alternate between generator and discriminator training

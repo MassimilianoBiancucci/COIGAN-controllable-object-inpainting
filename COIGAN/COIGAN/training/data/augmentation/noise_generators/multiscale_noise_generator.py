@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from torchvision.transforms.functional import gaussian_blur
 
 from omegaconf import DictConfig, ListConfig
 from typing import Tuple
@@ -29,7 +30,7 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
         scales: list = [1, 2, 4, 8, 16],
         strategy: str = "additive",
         normalize: bool = True,
-          
+        smooth: int = 3
     ):
         """
         Args:
@@ -40,6 +41,7 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
                 - multiplicative: multiply the original masks by the noise.     es. masks * noise
                 - replace: replace the original masks with the noise.           es. noise*(masks > 0)
             normalize (bool): if True, normalize the noise to the range [0, 1]
+            smooth (int): if > 0, smooth the noise with a gaussian filter with the given sigma
         """
         # check if the strategy is valid
         if strategy not in ["additive", "multiplicative", "replace"]:
@@ -65,7 +67,7 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
         self.align_corners = self.interpolation in {"bilinear", "bicubic"}
 
         self.normalize = normalize
-
+        self.smooth = smooth if smooth%2 == 1 else smooth+1
 
     def __call__(self, masks: torch.Tensor) -> torch.Tensor:
         """
@@ -82,6 +84,10 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
         if mask_target.any():
             noise = self.get_noise(masks.shape)
 
+            # smooth the noise
+            if self.smooth > 0:
+                mask_target = gaussian_blur(masks, self.smooth)
+
             if self.strategy == 0: # additive
                 noise_mask = (masks + noise) * mask_target
 
@@ -90,7 +96,7 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
 
             elif self.strategy == 2: # replace
                 noise_mask = noise * mask_target
-            
+
             # normalize the noise to the range [0, 1]
             if self.normalize:
                 noise_mask_min = min(0, noise_mask.min())
@@ -134,11 +140,11 @@ def test0():
         base_generator_kwargs = {
             "kind": "gaussian",
             "kind_kwargs": {
-                "mean": 0.0,
-                "std": 0.2
+                "mean": 0.5,
+                "std": 0.08
             }
         },
-        scales = [1, 2, 4, 8, 16],
+        scales = [1, 2, 4],
         strategy = "replace"
     )
 
@@ -165,8 +171,47 @@ def test0():
 
     print("DONE!")
 
+def test1():
+    from time import time
+    noise_gen = MultiscaleNoiseGenerator(
+        base_generator_kwargs = {
+            "kind": "gaussian",
+            "kind_kwargs": {
+                "mean": 0.5,
+                "std": 0.08
+            }
+        },
+        scales = [1, 2, 4],
+        strategy = "replace",
+        smooth = 41
+    )
+
+    masks = torch.zeros((1, 256, 256))
+    masks[:, 128:, :] = 1
+
+    noise_gen.smooth = 41
+    t0 = time()
+    test_0 = noise_gen(masks)[0]
+    t1 = time()
+    print(f"Time to generate noise 0: {t1 - t0:.3f} seconds")
+
+    noise_gen.smooth = 21
+    t0 = time()
+    test_1 = noise_gen(masks)[0]
+    t1 = time()
+    print(f"Time to generate noise 1: {t1 - t0:.3f} seconds")
+
+    noise_gen.smooth = 11
+    t0 = time()
+    test_2 = noise_gen(masks)[0]
+    t1 = time()
+    print(f"Time to generate noise 2: {t1 - t0:.3f} seconds")
+
+    print("DONE!")
+
+
 
 if __name__ == "__main__":
-    test0()
-
+    #test0()
+    test1()
     
