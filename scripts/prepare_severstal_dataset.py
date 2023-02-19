@@ -500,7 +500,7 @@ def main(config: DictConfig):
 
     # 6 - create the none defected img dataset to train another stylegan, to generate new none defected images
     create_base_dataset(config)
-
+    
     # 7 - convert in tile datasets the train and the test dataset, with the same size of the tiles used in the COIGAN model
     create_tile_datasets(config)
 

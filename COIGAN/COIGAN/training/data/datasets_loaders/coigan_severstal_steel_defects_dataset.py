@@ -28,6 +28,7 @@ class CoiganSeverstalSteelDefectsDataset:
         base_dataset: ImageFolder,
         defect_classes: List[str],
         defect_dataloaders: List[ObjectDataloader],
+        ref_dataset: ImageFolder = None,
         shape_dataloaders: List[ShapeObjectDataloader] = None,
         mask_noise_generator_kwargs: DictConfig = None,
         mask_base_img: bool = False,
@@ -41,6 +42,7 @@ class CoiganSeverstalSteelDefectsDataset:
 
         This dataset object require the following input datasets:
             - base dataset: the dataset containing the images without any defects
+            - ref_dataset: the dataset containing all the images of the training set, with and without defects.
             - shape_dataloaders: a list of dataloaders, one for each type of defect.
                     Those dataloaders are used to create the masks for the defect generation.
             - defect dataloaders: a list of dataloaders, one for each type of defect.
@@ -49,6 +51,7 @@ class CoiganSeverstalSteelDefectsDataset:
             
         The output of this dataset is a tuple containing the following elements:
             - ["base"]: The base image, that it's not masked even if the mask_base_img flag is True.
+            - ["ref"]: The reference image, used to train a discriminator that push the inpainted image to seems realistic.
             - ["gen_input"]: the input tensor of the generator, containing the base image that can be masked with the input defect masks
                         and the input defects masks (or the noise masks if the noise generator parameters are passed) concatenated. 
                         shape: (3+n, H, W) where n is the number of defect classes.
@@ -84,6 +87,7 @@ class CoiganSeverstalSteelDefectsDataset:
 
         # datasets
         self.base_dataset = base_dataset
+        self.ref_dataset = ref_dataset
         self.shape_dataloaders = shape_dataloaders
         self.defect_dataloaders = defect_dataloaders
 
@@ -92,6 +96,11 @@ class CoiganSeverstalSteelDefectsDataset:
         self.base_regenerations = 0
         self.base_dataset_len = len(base_dataset)
         self.base_dataset_idxs = []
+
+        # ref dataset vars
+        self.ref_regenerations = 0
+        self.ref_dataset_len = len(ref_dataset)
+        self.ref_dataset_idxs = []
 
         # shape dataloaders vars
         if shape_dataloaders is not None:
@@ -138,6 +147,7 @@ class CoiganSeverstalSteelDefectsDataset:
         Method that regenerate the idxs lists for each sub dataset.
         """
         self._regenerate_base_idxs()
+        self._regenerate_ref_idxs()
         self._regenerate_shape_idxs()
         self._regenerate_defect_idxs()
 
@@ -152,6 +162,18 @@ class CoiganSeverstalSteelDefectsDataset:
         if self.shuffle: self.random.shuffle(self.base_dataset_idxs)
 
 
+    def _regenerate_ref_idxs(self):
+        """
+        Method that regenerate the idxs lists for the ref dataset.
+        """
+        # regenerate the ref dataset idxs
+        if self.ref_dataset is None:
+            return
+        self.ref_regenerations += 1
+        self.ref_dataset_idxs = list(range(self.ref_dataset_len))
+        if self.shuffle: self.random.shuffle(self.ref_dataset_idxs)
+
+
     def _regenerate_shape_idxs(self, idx: int = -1):
         """
         Method that regenerate the idxs lists for each shape dataset,
@@ -161,18 +183,19 @@ class CoiganSeverstalSteelDefectsDataset:
             idx: the index of the shape dataset to regenerate.
                 If -1, regenerate all the shape datasets.
         """
-        if self.shape_dataloaders is not None:
-            if idx == -1:
-                # regenerate the shape dataloaders idxs
-                for i, shape_dataloader_len in enumerate(self.shape_dataloaders_len):
-                    if len(self.shape_dataloaders_idxs[i]) == 0:
-                        self.shape_regenerations[i] += 1
-                        self.shape_dataloaders_idxs[i] = list(range(shape_dataloader_len))
-                        if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[i])
-            else:
-                self.shape_regenerations[idx] += 1
-                self.shape_dataloaders_idxs[idx] = list(range(self.shape_dataloaders_len[idx]))
-                if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[idx])
+        if self.shape_dataloaders is None:
+            return
+        if idx == -1:
+            # regenerate the shape dataloaders idxs
+            for i, shape_dataloader_len in enumerate(self.shape_dataloaders_len):
+                if len(self.shape_dataloaders_idxs[i]) == 0:
+                    self.shape_regenerations[i] += 1
+                    self.shape_dataloaders_idxs[i] = list(range(shape_dataloader_len))
+                    if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[i])
+        else:
+            self.shape_regenerations[idx] += 1
+            self.shape_dataloaders_idxs[idx] = list(range(self.shape_dataloaders_len[idx]))
+            if self.shuffle: self.random.shuffle(self.shape_dataloaders_idxs[idx])
 
 
     def _regenerate_defect_idxs(self, idx: int = -1):
@@ -206,23 +229,30 @@ class CoiganSeverstalSteelDefectsDataset:
         if len(self.base_dataset_idxs) == 0: self._regenerate_base_idxs()
         base_idx = self.base_dataset_idxs.pop()
 
-        if not only_base:
-            # get the shape idxs
-            if self.shape_dataloaders is not None:
-                shape_idxs = []
-                for i, shape_dataloader_idxs in enumerate(self.shape_dataloaders_idxs):
-                    if len(shape_dataloader_idxs) == 0: self._regenerate_shape_idxs(i)
-                    shape_idxs.append(self.shape_dataloaders_idxs[i].pop())
-            
-            # get the defect idxs
-            defect_idxs = []
-            for i, defect_dataloader_idxs in enumerate(self.defect_dataloaders_idxs):
-                if len(defect_dataloader_idxs) == 0: self._regenerate_defect_idxs(i)
-                defect_idxs.append(self.defect_dataloaders_idxs[i].pop())
+        # get the ref idx
+        if self.ref_dataset is not None:
+            if len(self.ref_dataset_idxs) == 0: self._regenerate_ref_idxs()
+            ref_idx = self.ref_dataset_idxs.pop()
+        else:
+            ref_idx = None
+
+        if only_base:
+            return base_idx, ref_idx
+
+        # get the shape idxs
+        if self.shape_dataloaders is not None:
+            shape_idxs = []
+            for i, shape_dataloader_idxs in enumerate(self.shape_dataloaders_idxs):
+                if len(shape_dataloader_idxs) == 0: self._regenerate_shape_idxs(i)
+                shape_idxs.append(self.shape_dataloaders_idxs[i].pop())
         
-            return base_idx, shape_idxs, defect_idxs
-        
-        return base_idx
+        # get the defect idxs
+        defect_idxs = []
+        for i, defect_dataloader_idxs in enumerate(self.defect_dataloaders_idxs):
+            if len(defect_dataloader_idxs) == 0: self._regenerate_defect_idxs(i)
+            defect_idxs.append(self.defect_dataloaders_idxs[i].pop())
+    
+        return base_idx, ref_idx, shape_idxs, defect_idxs
 
 
     def get_sample(self):
@@ -247,10 +277,13 @@ class CoiganSeverstalSteelDefectsDataset:
         """
 
         # Get the indexes for each sub dataset
-        base_idx = self._generate_sample_idxs(only_base=True)
+        base_idx, ref_idx = self._generate_sample_idxs(only_base=True)
 
         # Get the base image
         base = self.base_dataset[base_idx][0]
+
+        # Get the reference image
+        ref = self.ref_dataset[ref_idx][0] if ref_idx is not None else None
         
         # Get the defects images
         # used for train the discriminator
@@ -287,6 +320,9 @@ class CoiganSeverstalSteelDefectsDataset:
         
         sample["base"] = base
         base_masked = base.clone()
+
+        if ref is not None:
+            sample["ref"] = ref
 
         # Store the union of the shapes used as input of the generator
         sample["gen_input_union_mask"] = union_mask
@@ -360,6 +396,7 @@ def visualize(COIGAN_dataloader: CoiganSeverstalSteelDefectsDataset):
 
     cv2.namedWindow("base", cv2.WINDOW_NORMAL)
     cv2.namedWindow("base_masked", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("ref", cv2.WINDOW_NORMAL)
 
     for i in range(n_classes):
         cv2.namedWindow("defect_{}".format(i), cv2.WINDOW_NORMAL)
@@ -372,6 +409,7 @@ def visualize(COIGAN_dataloader: CoiganSeverstalSteelDefectsDataset):
         sample = COIGAN_dataloader.get_sample_no_overlap()
 
         img = (sample["base"].numpy()*255).transpose(1, 2, 0).astype(np.uint8)
+        ref_img = (sample["ref"].numpy()*255).transpose(1, 2, 0).astype(np.uint8)
 
         # unwrap the generator input
         gen_input = sample["gen_input"]
@@ -397,6 +435,7 @@ def visualize(COIGAN_dataloader: CoiganSeverstalSteelDefectsDataset):
         # visualize the base image
         cv2.imshow("base", img)
         cv2.imshow("base_masked", masked_img)
+        cv2.imshow("ref", ref_img)
 
         # visualize the shapes
         for i in range(n_classes):
@@ -424,6 +463,11 @@ if __name__ == "__main__":
     # load the base dataset
     base_dataset = ImageFolder(
         root="/home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/base_dataset",
+        transform=base_imgs_preset
+    )
+
+    ref_dataset = ImageFolder(
+        root="/home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/tile_train_set",
         transform=base_imgs_preset
     )
 
@@ -472,6 +516,7 @@ if __name__ == "__main__":
         ["defect_1", "defect_2", "defect_3", "defect_4"],
         object_dataloaders,
         #shape_dataloaders,
+        ref_dataset=ref_dataset,
         mask_base_img = True,
         allow_overlap = False,
         length = 100000,
