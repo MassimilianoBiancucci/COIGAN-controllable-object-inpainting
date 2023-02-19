@@ -28,7 +28,8 @@ class MultiscaleNoiseGenerator(BaseNoiseGenerator):
         interpolation: str = "bilinear",
         scales: list = [1, 2, 4, 8, 16],
         strategy: str = "additive",
-        normalize: bool = True
+        normalize: bool = True,
+          
     ):
         """
         Args:

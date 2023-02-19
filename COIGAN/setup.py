@@ -12,7 +12,8 @@ requirements = [
     "omegaconf==2.2.3",
     "kornia==0.6.8",
     "pandas==1.5.0",
-    "scipy==1.9.1"
+    "scipy==1.9.1",
+    "matplotlib==3.6.0",
 ]
 
 test_requirements = []

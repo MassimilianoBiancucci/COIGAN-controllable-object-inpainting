@@ -13,6 +13,9 @@ from COIGAN.training.data.augmentation.augmentation_presets import augmentation_
 from COIGAN.training.data.datasets_loaders.jsonl_object_dataset import JsonLineObjectDataset, JsonLineMaskObjectDataset
 from COIGAN.training.data.datasets_loaders.coigan_severstal_steel_defects_dataset import CoiganSeverstalSteelDefectsDataset
 
+from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDatasetBase, JsonLineDataset
+from COIGAN.training.data.datasets_loaders.severstal_steel_defect import SeverstalSteelDefectDataset
+
 from COIGAN.utils.ddp_utils import data_sampler
 
 LOGGER = logging.getLogger(__name__)

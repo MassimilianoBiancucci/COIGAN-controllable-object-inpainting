@@ -1,111 +1,120 @@
 import os
-import cv2
-import numpy as np
 import json
+import numpy as np
+import cv2
 
 import logging
 import traceback
 
 from tqdm import tqdm
 from multiprocessing import Process, Queue, cpu_count
-from omegaconf.listconfig import ListConfig
 from typing import Union, Tuple, List
+from omegaconf.listconfig import ListConfig
+
+from COIGAN.training.data.datasets_loaders import JsonLineDataset
+from COIGAN.training.data.dataset_generators import JsonLineDatasetBaseGenerator
+from COIGAN.training.data.image_evaluators import ImageEvaluatorBase
 
 LOGGER = logging.getLogger(__name__)
 
-from COIGAN.training.data.dataset_generators.jsonl_dataset_generator import JsonLineDatasetBaseGenerator
-from COIGAN.training.data.datasets_loaders.severstal_steel_defect import SeverstalSteelDefectDataset
+class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
 
-class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
     """
-    That module convert the Severstal Steel Defect Dataset into a COIGAN compatible dataset.
-
-    Operations:
-        - convert the masks into polygons
-        - split each sample in squared tiles
-        - save each tile as a separated image and add the corresponding masks as polygons in a jsonl file
+        This object is used to generate a dataset in jsonl format
+        with a specific tile size, starting from another jsonl datsaset with a different tile size.
+        The output dataset will have the same structure of the input dataset, but with the new tile size.
     """
 
     def __init__(
-        self,
-        raw_dataset: SeverstalSteelDefectDataset,
+        self, 
+        input_dataset: JsonLineDataset,
         output_dir: str,
         tile_size: Union[int, Tuple[int, int], List[int], ListConfig],
         dump_every: int = 1000,
         binary: bool = True,
         n_workers: int = 1,
-        q_size: int = 10
+        q_size: int = 10,
+        img_evaluator: ImageEvaluatorBase = None,
     ):
-        """
-        Init the SeverstalSteelDefectPreprcessor
 
-        Args:
-            raw_dataset (SeverstalSteelDefectDataset): The raw dataset
-            output_dir (str): Path to the output directory
-            tile_size (int, Tuple[int, int], list[int], ListConfig): The size of the tile
-            dump_every (int, optional): Dump the metadata every n samples. Defaults to 1000.
-            binary (bool, optional): If True the masks are binarized. Defaults to True.
-            n_workers (int, optional): Number of workers to use. Defaults to 1.
-
-        """
         super().__init__(
             output_dir, 
             dump_every=dump_every, 
             binary=binary
         )
 
+        self.input_dataset = input_dataset
+        
         self.output_dir = output_dir
         self.data_dir = os.path.join(output_dir, "data")
-        self.raw_dataset = raw_dataset
-        
-        if isinstance(tile_size, (tuple, list, ListConfig)):
-            self.tile_size = tile_size
-        elif isinstance(tile_size, int):
-            self.tile_size = (tile_size, tile_size)
 
-        self.n_workers = cpu_count() if n_workers == -1 else n_workers
-        self.q_size = q_size
-
-        # create the data directory
+        # create the output directory
         os.makedirs(self.data_dir, exist_ok=True)
 
-        self.genrate_params_brief()
+        if isinstance(tile_size, int):
+            tile_size = (tile_size, tile_size)
+        elif isinstance(tile_size, (list, Tuple, ListConfig)):
+            tile_size = tuple(tile_size)
+        self.tile_size = tile_size
+
+        self.img_evaluator = img_evaluator
+
+        # process variables
+        self.n_workers = cpu_count() if n_workers == -1 else n_workers
+        self.q_size = q_size
+        self.n_samples = 0
+
+        #self.genrate_params_brief()
 
 
     def convert(self):
         """
-            Convert the dataset into COIGAN compatible dataset.
+            Method that start the conversion process from the input dataset
+            to a new dataset with the same format but with the new tile size.
+
+            if passed an image evaluator, the tiles will be evaluated before being saved,
+            and only the tiles that pass the evaluation will be saved.
+
+            Each sample will be splitted in tiles included the masks, and separated accordingly.
         """
 
         if self.n_workers != 1:
             self.convert_parallel()
             return
 
-        LOGGER.info("Converting the dataset into COIGAN compatible dataset")
+        LOGGER.info(f"Tiling the dataset..")
         idx = 0
-        for image, masks in tqdm(self.raw_dataset):
+        for image, masks in tqdm(self.input_dataset):
+        
+            # assemble the masks in a single tensor with shape (h, w, n_masks)
+            masks = TileDatasetPreprocessor.assemble_masks(
+                self.input_dataset.masks_fields,
+                self.input_dataset.classes,
+                image.shape[:2],
+                masks
+            )
+
             images, metadata_lst = self.preprocess(image, masks, self.tile_size)
-            
-            for image, metadata in zip(images, metadata_lst):
-                img_name = f"{idx}.jpg"
+
+            for img, metadata in zip(images, metadata_lst):
+                img_name = f"{idx}.png"
                 idx += 1
 
                 metadata["img"] = img_name
-                cv2.imwrite(os.path.join(self.data_dir, img_name), image)
-            
+                cv2.imwrite(os.path.join(self.data_dir, img_name), img)
             self.insert(metadata_lst)
-
+        
         self.close()
 
 
     def convert_parallel(self):
         """
-            Convert the dataset into COIGAN compatible dataset using multiple workers.
+            Convert the dataset using multiple workers.
         """
-        LOGGER.info(f"Converting the dataset into COIGAN compatible dataset using {self.n_workers} workers")
+        LOGGER.info(f"Converting the dataset using {self.n_workers} workers...")
         
         # create a tqdm bar
-        pbar = tqdm(total=len(self.raw_dataset))
+        pbar = tqdm(total=len(self.input_dataset))
 
         # create input output queues
         sample_queues = [Queue(self.q_size) for _ in range(self.n_workers)]
@@ -119,7 +128,9 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
                     sample_queues[i], 
                     output_queue, 
                     self.data_dir,
-                    self.tile_size
+                    self.tile_size,
+                    classes=self.input_dataset.classes,
+                    masks_fields=self.input_dataset.masks_fields
                 )
             )
 
@@ -131,7 +142,7 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
             processes[-1].start()
         
         idx = 0
-        for image, masks in self.raw_dataset:
+        for image, masks in self.input_dataset:
 
             # load the sample in the first available queue
             found_free_proc = False
@@ -176,22 +187,6 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         self.close()
 
 
-    def genrate_params_brief(self):
-        """
-            Generate a brief of the dataset parameters.
-        """
-        # generate a file that specify the dataset generation parameters
-        params = {
-            "tile_size": [
-                self.tile_size[0],
-                self.tile_size[1]
-            ]
-        }
-
-        with open(os.path.join(self.output_dir, "params.json"), "w") as f:
-            json.dump(params, f)
-
-
     @staticmethod
     def preprocess(image, masks, tile_size=(256, 256)):
         """
@@ -209,12 +204,49 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         """
 
         # split the image and masks in tiles
-        images, masks = SeverstalSteelDefectPreprcessor.split_image_and_masks(image, masks, tile_size)
+        images, masks = TileDatasetPreprocessor.split_image_and_masks(image, masks, tile_size)
 
         # convert the masks into polygons
-        polygons = SeverstalSteelDefectPreprcessor.masks_to_polygons(masks)
+        polygons = TileDatasetPreprocessor.masks_to_polygons(masks)
 
         return images, polygons
+
+
+    @staticmethod
+    def assemble_masks(
+        masks_fields, 
+        classes,
+        size, 
+        masks
+    ):
+        """
+        Method that assemble a dict of masks in a single tensor with shape (h, w, n_masks)
+        Args:
+            masks_fields (list[str]): list of masks fields, es: ["polygons"]
+            classes (list[str]): list of classes, es: ["0", "1", "2", "3"].
+            size (tuple): size of the image, es: (256, 1600) 
+            masks (dict): dict of masks, can be empty if there aren't masks.
+                example structure:
+                    {
+                        "polygons": {
+                            "0": np.ndarray, # of shape (h, w)
+                            "1": np.ndarray,
+                            "2": np.ndarray,
+                            "3": np.ndarray,
+                        }
+                    }
+        Returns:
+            np.ndarray: tensor of shape (h, w, n_masks)
+        """
+        # iteratively search for the mak
+        masks_lst = []
+        for _class in classes:
+            for field in masks_fields:
+                if _class in masks[field]:
+                    masks_lst.append(masks[field][_class])
+                else:
+                    masks_lst.append(np.zeros(size, dtype=np.uint8))
+        return np.stack(masks_lst, axis=-1)
 
 
     @staticmethod
@@ -270,7 +302,7 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
                         masks.append(None)
 
         return images, masks
-
+    
 
     @staticmethod
     def masks_to_polygons(
@@ -304,7 +336,7 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
             if mask is not None: # if there are masks
                 for class_id in range(mask.shape[-1]): # iter over the masks classes of one tile
                     if np.sum(mask[..., class_id]) != 0: # if the mask is empty
-                        polygons = SeverstalSteelDefectPreprcessor.mask2poly(mask[..., class_id]) # convert the mask into polygons
+                        polygons = TileDatasetPreprocessor.mask2poly(mask[..., class_id]) # convert the mask into polygons
                         for poly in polygons: # iter over the polygons of one mask
                             sml_polygons.append(
                                 {
@@ -379,12 +411,12 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
                     contours_norm.append(c)
         else:
             contours_norm = reduced_contours
-        
+
         # check if the polygon is valid
         if check_validity:
             valid_contours = []
             for c in contours_norm:
-                if SeverstalSteelDefectPreprcessor.check_polygon_healt(c):
+                if TileDatasetPreprocessor.check_polygon_healt(c):
                     valid_contours.append(c)
             return valid_contours
 
@@ -417,7 +449,7 @@ class SeverstalSteelDefectPreprcessor(JsonLineDatasetBaseGenerator):
         # check if there are at least 2 points in each axis
         polygon = polygon.squeeze()
         if len(set(polygon[:, 0])) < 2 or len(set(polygon[:, 1])) < 2:
-            LOGGER.warning("Found one polygon with all the points on the same line!")
+            #LOGGER.warning("Found one polygon with all the points on the same line!")
             return False
 
         return True
@@ -431,6 +463,8 @@ class PreprocessTask:
         out_q, 
         output_data_dir,
         tile_size=(256, 256),
+        classes = ["0", "1", "2", "3"],
+        masks_fields = ["polygons"],
         verbose=False
     ):
 
@@ -438,6 +472,8 @@ class PreprocessTask:
         self.out_q = out_q
         self.output_data_dir = output_data_dir
         self.tile_size = tile_size
+        self.classes = classes
+        self.masks_fields = masks_fields
         self.verbose = verbose
     
     def run(self):
@@ -447,7 +483,14 @@ class PreprocessTask:
             try:
                 # apply the preprocess to the sample
                 idx, image, masks = sample
-                (images, metadata_lst) = SeverstalSteelDefectPreprcessor.preprocess(image, masks, self.tile_size)
+
+                masks = TileDatasetPreprocessor.assemble_masks(
+                    self.masks_fields,
+                    self.classes,
+                    image.shape[:2],
+                    masks
+                )
+                images, metadata_lst = TileDatasetPreprocessor.preprocess(image, masks, self.tile_size)
 
                 for i, (img, metadata) in enumerate(zip(images, metadata_lst)):
                     img_name = f"{idx}_{i}.jpg"
@@ -468,3 +511,39 @@ class PreprocessTask:
         # end the process
         self.out_q.put("END")
 
+
+################################################################
+### DEBUG
+if __name__ == "__main__":
+
+    train_set_dir = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/train_set"
+    output_dir = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/tile_train_set"
+
+    # load the train dataset
+    train_dataset = JsonLineDataset(
+        image_folder_path =     os.path.join(train_set_dir, "data"),
+        metadata_file_path =    os.path.join(train_set_dir, "dataset.jsonl"),
+        index_file_path =       os.path.join(train_set_dir, "index"),
+        masks_fields =          ["polygons"],
+        classes =               ["0", "1", "2", "3"],
+        size =                  [256, 1600],
+        binary =                True
+    )
+
+    # initialize the datasets
+    train_dataset.on_worker_init()
+
+    # load the image evaluator
+    #img_evaluator = SeverstalBaseEvaluator(
+    #    **config.base_evaluator_kwargs
+    #)
+
+    LOGGER.info("Creating the tile datasets...")
+    TileDatasetPreprocessor(
+        input_dataset = train_dataset,
+        output_dir = output_dir,
+        tile_size = (256, 256),
+        binary = True,
+        n_workers = 8,
+        q_size = 10
+    ).convert()

@@ -2,34 +2,37 @@ import os
 import hydra
 import logging
 
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 # import the dataset loaders
-from COIGAN.training.data.datasets_loaders.jsonl_dataset import JsonLineDatasetBase, JsonLineDataset
-from COIGAN.training.data.datasets_loaders.severstal_steel_defect import SeverstalSteelDefectDataset
+from COIGAN.training.data.datasets_loaders import JsonLineDatasetBase, JsonLineDataset
+from COIGAN.training.data.datasets_loaders import SeverstalSteelDefectDataset
 
 # import the dataset generators
-from COIGAN.training.data.dataset_generators.severstal_steel_defect_dataset_preprcessor import SeverstalSteelDefectPreprcessor
-from COIGAN.training.data.dataset_generators.object_dataset_generator import ObjectDatasetGenerator
-from COIGAN.training.data.dataset_generators.base_dataset_generator import BaseDatasetGenerator
+from COIGAN.training.data.dataset_generators import SeverstalSteelDefectPreprcessor
+from COIGAN.training.data.dataset_generators import ObjectDatasetGenerator
+from COIGAN.training.data.dataset_generators import BaseDatasetGenerator
+from COIGAN.training.data.dataset_generators import TileDatasetPreprocessor
+
 
 # import the dataset inspectors
-from COIGAN.training.data.dataset_inspectors.jsonl_dataset_inspector import JsonLineDatasetInspector
-from COIGAN.training.data.dataset_inspectors.jsonl_mask_dataset_inspector import JsonLineMaskDatasetInspector
+from COIGAN.training.data.dataset_inspectors import JsonLineDatasetInspector
+from COIGAN.training.data.dataset_inspectors import JsonLineMaskDatasetInspector
 
 # import the dataset splitters
-from COIGAN.training.data.dataset_splitters.base_splitter import BaseSplitter
-from COIGAN.training.data.dataset_splitters.fair_splitter import FairSplitter
+from COIGAN.training.data.dataset_splitters import BaseSplitter
+from COIGAN.training.data.dataset_splitters import FairSplitter
 
 # import the image evaluators
-from COIGAN.training.data.image_evaluators.severstal_base_evaluator import SeverstalBaseEvaluator
+from COIGAN.training.data.image_evaluators import SeverstalBaseEvaluator
+
 
 # setting up the logger and enable warnings
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def check_severstal_jsonl_dataset_health(config: OmegaConf):
+def check_severstal_jsonl_dataset_health(config: DictConfig):
     """
         Method that check if the jsonl_all dataset
         is correctly created, and if need to be recreated.
@@ -75,7 +78,7 @@ def check_severstal_jsonl_dataset_health(config: OmegaConf):
         return False
 
 
-def download_and_extract_severstal_dataset(config: OmegaConf):
+def download_and_extract_severstal_dataset(config: DictConfig):
     """
         Download and extract the Severstal Steel Defect Dataset from kaggle
         only if needed!
@@ -110,7 +113,7 @@ def download_and_extract_severstal_dataset(config: OmegaConf):
         LOGGER.info("The dataset from kaggle is already downloaded and extracted")
 
 
-def convert_severstal_dataset_to_jsonl(config: OmegaConf):
+def convert_severstal_dataset_to_jsonl(config: DictConfig):
     """
         Convert the Severstal Steel Defect Dataset into COIGAN compatible dataset.
 
@@ -133,7 +136,7 @@ def convert_severstal_dataset_to_jsonl(config: OmegaConf):
         LOGGER.info("The dataset is already converted in jsonl format!")
 
 
-def create_severstal_dataset_report(config: OmegaConf):
+def create_severstal_dataset_report(config: DictConfig):
     """
         Create a report of the dataset
     """
@@ -170,7 +173,7 @@ def create_severstal_dataset_report(config: OmegaConf):
     inspector.generate_graphs()
 
         
-def split_dataset(config: OmegaConf):
+def split_dataset(config: DictConfig):
     """
         Split the dataset in train and test set, keeping the same distribution of the classes
     """
@@ -214,7 +217,7 @@ def split_dataset(config: OmegaConf):
         raise ValueError(f"Split mode {config.split_mode} not supported!")
 
 
-def create_splits_reports(config: OmegaConf):
+def create_splits_reports(config: DictConfig):
 
     # checking if the report is already generated
     train_report_dir = os.path.join(config.train_set_dir, "reports")
@@ -252,7 +255,7 @@ def create_splits_reports(config: OmegaConf):
     inspector.generate_graphs()
 
 
-def create_object_datasets(config: OmegaConf):
+def create_object_datasets(config: DictConfig):
     
     # checking if the object datasets are already created
     if config.force_object_dataset_generator:
@@ -292,7 +295,7 @@ def create_object_datasets(config: OmegaConf):
         ).convert()
 
 
-def create_object_datasets_reports(config: OmegaConf):
+def create_object_datasets_reports(config: DictConfig):
     """
         Create the reports for the object datasets
     """
@@ -341,9 +344,9 @@ def create_object_datasets_reports(config: OmegaConf):
         inspector.generate_graphs()
 
 
-def create_base_dataset(config: OmegaConf):
+def create_base_dataset(config: DictConfig):
     """
-        Create the base dataset to train the stylegan model
+        Create the base dataset
     """
     if config.force_base_dataset_generator:
         LOGGER.warning("Force base dataset generator flag is set, deletting the base dataset...")
@@ -378,7 +381,7 @@ def create_base_dataset(config: OmegaConf):
         **config.base_evaluator_kwargs
     )
 
-    LOGGER.info("Creating the base dataset to train the stylegan model...")
+    LOGGER.info("Creating the base dataset...")
     BaseDatasetGenerator(
         input_dataset =     input_dataset,
         image_dir=          os.path.join(config.train_set_dir, "data"),
@@ -387,8 +390,72 @@ def create_base_dataset(config: OmegaConf):
     ).convert()
 
 
+def create_tile_datasets(config: DictConfig):
+    """
+    Method that create the tile datasets
+
+    Args:
+        config (DictConfig): _description_
+    """
+    def delete_tile_datasets(config):
+        if os.path.exists(config.tile_train_set_dir):
+            LOGGER.info("Deleting the tile train set...")
+            os.system(f"rm -r {config.tile_train_set_dir}")
+        if os.path.exists(config.tile_test_set_dir):
+            LOGGER.info("Deleting the tile test set...")
+            os.system(f"rm -r {config.tile_test_set_dir}")
+
+    if config.force_tile_dataset_generator:
+        LOGGER.warning("Force tile dataset generator flag is set, deletting the tile datasets...")
+        delete_tile_datasets(config)
+    elif (not os.path.exists(config.tile_train_set_dir)) or (not os.path.exists(config.tile_test_set_dir)):
+        LOGGER.info("The tile datasets are not created! creating them...")
+        delete_tile_datasets(config)
+    elif os.path.exists(config.tile_train_set_dir) and os.path.exists(config.tile_test_set_dir):
+        LOGGER.info("The tile datasets are already created! skipping the tile dataset creation step...")
+        return
+
+    # load the train dataset
+    train_dataset = JsonLineDataset(
+        image_folder_path =     os.path.join(config.train_set_dir, "data"),
+        metadata_file_path =    os.path.join(config.train_set_dir, "dataset.jsonl"),
+        index_file_path =       os.path.join(config.train_set_dir, "index"),
+        masks_fields =          ["polygons"],
+        classes =               config.object_target_classes,
+        size =                  config.original_tile_size,
+        binary =                config.binary
+    )
+
+    # load the test dataset
+    test_dataset = JsonLineDataset(
+        image_folder_path =     os.path.join(config.test_set_dir, "data"),
+        metadata_file_path =    os.path.join(config.test_set_dir, "dataset.jsonl"),
+        index_file_path =       os.path.join(config.test_set_dir, "index"),
+        masks_fields =          ["polygons"],
+        classes =               config.object_target_classes,
+        size =                  config.original_tile_size,
+        binary =                config.binary
+    )
+
+    # initialize the datasets
+    train_dataset.on_worker_init()
+    test_dataset.on_worker_init()
+
+    LOGGER.info("Creating the tile train datasets...")
+    TileDatasetPreprocessor(
+        input_dataset = train_dataset,
+        **config.tile_train_dataset_generator_kwargs
+    ).convert()
+
+    LOGGER.info("Creating the tile test datasets...")
+    TileDatasetPreprocessor(
+        input_dataset = test_dataset,
+        **config.tile_test_dataset_generator_kwargs
+    ).convert()
+
+
 @hydra.main(config_path='../configs/data_preparation', config_name='severstal_dataset_preparation.yaml', version_base="1.1")
-def main(config: OmegaConf):
+def main(config: DictConfig):
     """
         Script that load the Severstal steel defect dataset and prepare it for the trianing pipeline.
 
@@ -401,9 +468,10 @@ def main(config: OmegaConf):
                 V 4.1 - create a report of the train and test splits
             V 5 - Create the defects datasets to train the COIGAN model to inpaint the defects and stylegan to generate new masks, from the train dataset
                 V 5.1 - Create the reports for the object datasets
-            6 - Create the none defected img dataset to train another stylegan, to generate new none defected images
+            V 6 - Create the none defected img dataset to train another stylegan, to generate new none defected images, or to use directly in the inpainting process.
+            7 - Convert in tile datasets the train and the test dataset, with the same size of the tiles in the precedenet processes
 
-        TODO: list of bugs that need to be fixed or improvements to be done:
+        TODO: list of bugs that need to be fixed or improvements:
 
     """
 
@@ -433,10 +501,8 @@ def main(config: OmegaConf):
     # 6 - create the none defected img dataset to train another stylegan, to generate new none defected images
     create_base_dataset(config)
 
-
-
-
-
+    # 7 - convert in tile datasets the train and the test dataset, with the same size of the tiles used in the COIGAN model
+    create_tile_datasets(config)
 
 
 

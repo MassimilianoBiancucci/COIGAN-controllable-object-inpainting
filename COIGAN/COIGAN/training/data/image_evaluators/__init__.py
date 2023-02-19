@@ -1,0 +1,2 @@
+from COIGAN.training.data.image_evaluators.image_evaluator_base import ImageEvaluatorBase
+from COIGAN.training.data.image_evaluators.severstal_base_evaluator import SeverstalBaseEvaluator

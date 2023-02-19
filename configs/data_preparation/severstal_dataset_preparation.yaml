@@ -22,6 +22,9 @@ test_set_dir: ${dataset_dir}/${dataset_name}/test_set
 object_datasets_dir: ${dataset_dir}/${dataset_name}/object_datasets
 base_dataset_dir: ${dataset_dir}/${dataset_name}/base_dataset
 
+tile_train_set_dir: ${dataset_dir}/${dataset_name}/tile_train_set
+tile_test_set_dir: ${dataset_dir}/${dataset_name}/tile_test_set
+
 # general datapipeline settings
 original_tile_size: [256, 1600] # specify the original tile size, (tile_size, tile_size)
 tile_size: [256, 256] # specify the tile size, to split the images from the dataset, (tile_size, tile_size), used only in the tiler
@@ -112,6 +115,23 @@ base_evaluator_kwargs:
   black_threshold: 10
   black_area_max_coverage: 0.1
   debug: False
+
+# parameters for test and train datasets generation
+force_tile_dataset_generator: False # if True the tile dataset generator will be forced to run, cancelling the previous dataset
+tile_train_dataset_generator_kwargs:
+  output_dir: ${tile_train_set_dir}
+  tile_size: ${tile_size}
+  binary: ${binary}
+  n_workers: ${n_workers}
+  q_size: ${q_size}
+
+tile_test_dataset_generator_kwargs:
+  output_dir: ${tile_test_set_dir}
+  tile_size: ${tile_size}
+  binary: ${binary}
+  n_workers: ${n_workers}
+  q_size: ${q_size}
+
 
 defaults:
   - hydra: severstal_overrides

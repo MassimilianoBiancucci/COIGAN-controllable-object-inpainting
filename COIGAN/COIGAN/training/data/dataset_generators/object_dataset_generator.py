@@ -19,7 +19,7 @@ class ObjectDatasetGenerator(JsonLineDatasetBaseGenerator):
     """
         Class that generate the jsonl dataset for the mask dataset.
         this type of dataset do not have a complex structure.
-        It's a simple collection of json in wich each json file 
+        It's a simple collection of json in which each json file 
         contains the information about one mask, and the the image 
         box that contains the mask.
         This dataset can be used to train a mask generator or 

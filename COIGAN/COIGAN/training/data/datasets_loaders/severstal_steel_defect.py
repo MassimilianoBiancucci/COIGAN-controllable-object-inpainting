@@ -6,7 +6,6 @@ import pandas as pd
 import logging
 
 from typing import Union, List
-from matplotlib import pyplot as plt
 
 
 
