@@ -94,7 +94,7 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
                 masks
             )
 
-            images, metadata_lst = self.preprocess(image, masks, self.tile_size)
+            images, metadata_lst = self.preprocess(image, masks, self.tile_size, self.img_evaluator)
 
             for img, metadata in zip(images, metadata_lst):
                 img_name = f"{idx}.png"
@@ -188,7 +188,7 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
 
 
     @staticmethod
-    def preprocess(image, masks, tile_size=(256, 256)):
+    def preprocess(image, masks, tile_size=(256, 256), image_evaluator=None):
         """
             Preprocess the image and the masks.
             operations:
@@ -204,7 +204,7 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
         """
 
         # split the image and masks in tiles
-        images, masks = TileDatasetPreprocessor.split_image_and_masks(image, masks, tile_size)
+        images, masks = TileDatasetPreprocessor.split_image_and_masks(image, masks, tile_size, image_evaluator)
 
         # convert the masks into polygons
         polygons = TileDatasetPreprocessor.masks_to_polygons(masks)
@@ -250,7 +250,7 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
 
 
     @staticmethod
-    def split_image_and_masks(image, _masks, tile_size=(256, 256)):
+    def split_image_and_masks(image, _masks, tile_size=(256, 256), image_evaluator=None):
         """
             Split the image and the masks in tiles.
             the number of tiles is determined by the tile_size as
@@ -292,14 +292,16 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
         for i in range(0, h, h_offset):
             for j in range(0, w, w_offset):
                 if i+tile_size[0] <= h and j+tile_size[1] <= w:
-                    images.append(image[i:i+tile_size[0], j:j+tile_size[1]])
+                    tile = image[i:i+tile_size[0], j:j+tile_size[1]]
+                    if image_evaluator is None or image_evaluator(tile):
+                        images.append(tile)
 
-                    # the masks are optional, if there aren't defects in the image
-                    # the masks will be None
-                    if _masks is not None:
-                        masks.append(_masks[i:i+tile_size[0], j:j+tile_size[1]])
-                    else:
-                        masks.append(None)
+                        # the masks are optional, if there aren't defects in the image
+                        # the masks will be None
+                        if _masks is not None:
+                            masks.append(_masks[i:i+tile_size[0], j:j+tile_size[1]])
+                        else:
+                            masks.append(None)
 
         return images, masks
     
@@ -465,6 +467,7 @@ class PreprocessTask:
         tile_size=(256, 256),
         classes = ["0", "1", "2", "3"],
         masks_fields = ["polygons"],
+        image_evaluator=None,
         verbose=False
     ):
 
@@ -474,6 +477,7 @@ class PreprocessTask:
         self.tile_size = tile_size
         self.classes = classes
         self.masks_fields = masks_fields
+        self.image_evaluator = image_evaluator
         self.verbose = verbose
     
     def run(self):
@@ -490,7 +494,12 @@ class PreprocessTask:
                     image.shape[:2],
                     masks
                 )
-                images, metadata_lst = TileDatasetPreprocessor.preprocess(image, masks, self.tile_size)
+                images, metadata_lst = TileDatasetPreprocessor.preprocess(
+                    image, 
+                    masks, 
+                    self.tile_size,
+                    image_evaluator=self.image_evaluator
+                )
 
                 for i, (img, metadata) in enumerate(zip(images, metadata_lst)):
                     img_name = f"{idx}_{i}.jpg"
@@ -516,8 +525,12 @@ class PreprocessTask:
 ### DEBUG
 if __name__ == "__main__":
 
-    train_set_dir = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/train_set"
-    output_dir = "/home/ubuntu/hdd/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/tile_train_set"
+    from COIGAN.training.data.image_evaluators import SeverstalBaseEvaluator
+
+    #base_folder = "/home/ubuntu/hdd/"
+    base_folder = "/home/max/thesis/"
+    train_set_dir = base_folder + "COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/train_set"
+    output_dir = base_folder + "COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/tile_train_set_v2"
 
     # load the train dataset
     train_dataset = JsonLineDataset(
@@ -534,9 +547,10 @@ if __name__ == "__main__":
     train_dataset.on_worker_init()
 
     # load the image evaluator
-    #img_evaluator = SeverstalBaseEvaluator(
-    #    **config.base_evaluator_kwargs
-    #)
+    img_evaluator = SeverstalBaseEvaluator(
+        black_threshold = 10,
+        black_area_max_coverage = 0.1
+    )
 
     LOGGER.info("Creating the tile datasets...")
     TileDatasetPreprocessor(
@@ -544,6 +558,7 @@ if __name__ == "__main__":
         output_dir = output_dir,
         tile_size = (256, 256),
         binary = True,
-        n_workers = 8,
-        q_size = 10
+        n_workers = 1,
+        q_size = 10,
+        img_evaluator = img_evaluator
     ).convert()
