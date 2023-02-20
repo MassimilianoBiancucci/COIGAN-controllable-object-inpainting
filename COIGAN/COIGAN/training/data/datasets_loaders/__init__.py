@@ -71,6 +71,11 @@ def make_severstal_steel_defect(config: DictConfig, seed: int = None):
         transform=augmentation_presets_dict["base_imgs_preset"]
     )
 
+    # load the reference dataset (if the use_ref_disc flag is set)
+    ref_dataset = ImageFolder(
+        **config.ref_dataset_kwargs,
+        transform=augmentation_presets_dict["base_imgs_preset"]
+    ) if config.use_ref_disc else None
 
     # create the augmentor object
     augmentor = Augmentor(
@@ -118,6 +123,7 @@ def make_severstal_steel_defect(config: DictConfig, seed: int = None):
         config.object_datasets.classes,
         object_dataloaders,
         shape_dataloaders,
+        ref_dataset=ref_dataset,
         seed=seed,
         **config.coigan_dataset_kwargs
     )

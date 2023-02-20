@@ -70,10 +70,12 @@ class COIGANtrainer:
 
         # other process variables
         self.mask_base_img = self.config.mask_base_img
+        self.use_ref_disc = self.config.use_ref_disc
 
         # create the generator, discriminator and EMA generator
         self.generator = make_generator(**config.generator).to(rank)
         self.discriminator = make_discriminator(**config.discriminator).to(rank)
+        self.ref_discriminator = make_discriminator(**config.ref_discriminator).to(rank) if self.use_ref_disc else None
 
         # if in the first process, create the moving average generator
         if self.device == 0 and self.config.use_ema:
@@ -85,6 +87,7 @@ class COIGANtrainer:
         # create the optimizers
         self.g_optim = make_optimizer(self.generator, **config.optimizers.generator)
         self.d_optim = make_optimizer(self.discriminator, **config.optimizers.discriminator)
+        self.ref_d_optim = make_optimizer(self.ref_discriminator, **config.optimizers.ref_discriminator) if self.use_ref_disc else None
 
         # loading checkpoint
         if config.checkpoint is not None:
@@ -94,11 +97,7 @@ class COIGANtrainer:
         os.makedirs(config.location.checkpoint_dir, exist_ok=True)
 
         if self.config.distributed:
-            # if distributed, save a reference of the modules of the generator and discriminator
-            # outside the data parallel wrapper, will be used for save the checkpoint
-            self.g_module = self.generator.module
-            self.d_module = self.discriminator.module
-
+            # if distributed, wrap the generator and discriminator in a data parallel wrapper
             self.generator = nn.parallel.DistributedDataParallel(
                 self.generator,
                 device_ids=[self.device],
@@ -110,21 +109,40 @@ class COIGANtrainer:
                 self.discriminator,
                 device_ids=[self.device],
                 output_device=self.device,
-                broadcast_buffers=False,
-                #find_unused_parameters=True
+                broadcast_buffers=False
             )
-            
+
+            if self.use_ref_disc:
+                self.ref_discriminator = nn.parallel.DistributedDataParallel(
+                    self.ref_discriminator,
+                    device_ids=[self.device],
+                    output_device=self.device,
+                    broadcast_buffers=False
+                )
+        
+
+        # save a reference to the unwrapped modules
+        if self.config.distributed:
+            # if distributed, save a reference of the modules of the generator and discriminator
+            # outside the data parallel wrapper, will be used for save the checkpoint
+            self.g_module = self.generator.module
+            self.d_module = self.discriminator.module
+            self.ref_d_module = self.ref_discriminator.module if self.use_ref_disc else None
+
         else:
             # if not distributed, save a reference of the modules of the generator and discriminator
             # anyway will be used for save the checkpoint
             self.g_module = self.generator
             self.d_module = self.discriminator
+            self.ref_d_module = self.ref_discriminator
         
+
         # load the loss manager
         self.loss_mng = CoiganLossManager(
             **config.losses,
             generator =     self.generator,
             discriminator = self.discriminator,
+            ref_discriminator = self.ref_discriminator,
             g_optimizer =   self.g_optim,
             d_optimizer =   self.d_optim,
             device =        self.device
@@ -158,10 +176,12 @@ class COIGANtrainer:
 
         self.generator.load_state_dict(ckpt["g"])
         self.discriminator.load_state_dict(ckpt["d"])
-        #self.g_ema.load_state_dict(ckpt["g_ema"])
+        if self.use_g_ema: self.g_ema.load_state_dict(ckpt["g_ema"])
+        if self.use_ref_disc: self.ref_discriminator.load_state_dict(ckpt["ref_d"])
 
         self.g_optim.load_state_dict(ckpt["g_optim"])
         self.d_optim.load_state_dict(ckpt["d_optim"])
+        if self.use_ref_disc: self.ref_d_optim.load_state_dict(ckpt["ref_d_optim"])
 
 
     def save_checkpoint(self, step_idx):
@@ -176,10 +196,17 @@ class COIGANtrainer:
         ckpt = {
             "g": self.g_module.state_dict(),
             "d": self.d_module.state_dict(),
-            #"g_ema": self.g_ema.state_dict(),
             "g_optim": self.g_optim.state_dict(),
             "d_optim": self.d_optim.state_dict(),
         }
+        
+        # if used save the g_ema
+        if self.use_g_ema: ckpt["g_ema"] = self.g_ema.state_dict()
+
+        # if used save the ref_discriminator
+        if self.use_ref_disc: 
+            ckpt["ref_d"] = self.ref_d_module.state_dict()
+            ckpt["ref_d_optim"] = self.ref_d_optim.state_dict()
 
         path = os.path.join(self.checkpoint_path, f"{step_idx}.pt")
         torch.save(ckpt, path)
@@ -229,6 +256,7 @@ class COIGANtrainer:
 
             #unpack the data
             base_image = sample["base"] # [base_r, base_g, base_b] the original image without any masking
+            ref_image = sample["ref"] # [ref_r, ref_g, ref_b] the reference image (if config.use_ref_disc = False then ref = None)
             gen_in = sample["gen_input"].to(self.device) # [base_r, base_g, base_b, mask_0, mask_1, mask_2, mask_3]
             gen_in_orig_masks = sample["orig_gen_input_masks"] # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
             disc_in_true = sample["disc_input"].to(self.device) # [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
@@ -240,6 +268,8 @@ class COIGANtrainer:
             if self.turn:
                 requires_grad(self.discriminator, True)
                 requires_grad(self.generator, False)
+                if self.use_ref_disc: requires_grad(self.ref_discriminator, True)
+                
 
                 #----> generate the fake images
                 fake_image = self.generator(gen_in)
@@ -256,6 +286,17 @@ class COIGANtrainer:
                     "real_score": disc_out_true.mean(),
                     "fake_score": disc_out_fake.mean(),
                 })
+
+                if self.use_ref_disc:
+                    #----> compute the reference discriminator outputs for the real and fake images
+                    ref_disc_out_true, ref_disc_true_features = self.ref_discriminator(ref_image)
+                    ref_disc_out_fake, ref_disc_fake_features = self.ref_discriminator(fake_image)
+
+                    self.loss_mng.metrics.update({
+                        "ref_real_score": ref_disc_out_true.mean(),
+                        "ref_fake_score": ref_disc_out_fake.mean(),
+                    })
+                
 
                 # compute the discriminator losses
                 self.loss_mng.discriminator_loss(disc_out_fake, disc_out_true)
@@ -275,6 +316,7 @@ class COIGANtrainer:
             else:
                 requires_grad(self.discriminator, False)
                 requires_grad(self.generator, True)
+                if self.use_ref_disc: requires_grad(self.ref_discriminator, False)
 
                 #----> generate the fake images
                 fake_image = self.generator(gen_in)
@@ -291,6 +333,16 @@ class COIGANtrainer:
                     "real_score": disc_out_true.mean(),
                     "fake_score": disc_out_fake.mean(),
                 })
+
+                if self.use_ref_disc:
+                    #----> compute the reference discriminator outputs for the real and fake images
+                    ref_disc_out_true, ref_disc_true_features = self.ref_discriminator(ref_image)
+                    ref_disc_out_fake, ref_disc_fake_features = self.ref_discriminator(fake_image)
+
+                    self.loss_mng.metrics.update({
+                        "ref_real_score": ref_disc_out_true.mean(),
+                        "ref_fake_score": ref_disc_out_fake.mean(),
+                    })
 
                 # prepare the base image and the generated base image for the generator loss
                 base_image_4loss = gen_in[:, :3, :, :] # load the image from the gen_in tensor, so if there are masked defects, the mask is already applied.
