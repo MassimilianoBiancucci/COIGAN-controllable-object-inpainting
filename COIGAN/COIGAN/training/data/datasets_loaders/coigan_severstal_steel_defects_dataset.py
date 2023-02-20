@@ -321,8 +321,7 @@ class CoiganSeverstalSteelDefectsDataset:
         sample["base"] = base
         base_masked = base.clone()
 
-        if ref is not None:
-            sample["ref"] = ref
+        sample["ref"] = None if ref is None else ref
 
         # Store the union of the shapes used as input of the generator
         sample["gen_input_union_mask"] = union_mask
