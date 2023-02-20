@@ -17,7 +17,7 @@ from omegaconf import OmegaConf, read_write
 
 from COIGAN.modules import make_generator, make_discriminator
 from COIGAN.training.losses import CoiganLossManager
-from COIGAN.training.logger.data_logger import DataLogger
+from COIGAN.training.logger import DataLogger
 
 from COIGAN.utils.ddp_utils import (
     get_rank,
@@ -94,11 +94,6 @@ class COIGANtrainer:
         os.makedirs(config.location.checkpoint_dir, exist_ok=True)
 
         if self.config.distributed:
-            # if distributed, save a reference of the modules of the generator and discriminator
-            # outside the data parallel wrapper, will be used for save the checkpoint
-            self.g_module = self.generator.module
-            self.d_module = self.discriminator.module
-
             self.generator = nn.parallel.DistributedDataParallel(
                 self.generator,
                 device_ids=[self.device],
@@ -113,13 +108,20 @@ class COIGANtrainer:
                 broadcast_buffers=False,
                 #find_unused_parameters=True
             )
-            
+
+
+        if self.config.distributed:
+            # if distributed, save a reference of the modules of the generator and discriminator
+            # outside the data parallel wrapper, will be used for save the checkpoint
+            self.g_module = self.generator.module
+            self.d_module = self.discriminator.module
         else:
             # if not distributed, save a reference of the modules of the generator and discriminator
             # anyway will be used for save the checkpoint
             self.g_module = self.generator
             self.d_module = self.discriminator
         
+
         # load the loss manager
         self.loss_mng = CoiganLossManager(
             **config.losses,

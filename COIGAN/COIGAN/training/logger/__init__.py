@@ -1,0 +1,1 @@
+from COIGAN.training.logger.data_logger import DataLogger
