@@ -442,14 +442,14 @@ def create_tile_datasets(config: DictConfig):
     test_dataset.on_worker_init()
 
         # load the image evaluator
-    img_evaluator = SeverstalBaseEvaluator(
+    image_evaluator = SeverstalBaseEvaluator(
         **config.base_evaluator_kwargs
     )
 
     LOGGER.info("Creating the tile train dataset...")
     TileDatasetPreprocessor(
         input_dataset = train_dataset,
-        img_evaluator = img_evaluator,
+        image_evaluator = image_evaluator,
         **config.tile_train_dataset_generator_kwargs
     ).convert()
 
