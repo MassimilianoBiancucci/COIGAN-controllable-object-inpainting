@@ -6,8 +6,6 @@ from torch.nn import functional as F
 from COIGAN.modules.stylegan2.op import conv2d_gradfix
 from COIGAN.modules.stylegan2.swagan import Generator, Discriminator
 
-#TODO: verify if all the functions are needed
-
 def d_logistic_loss(real_pred, fake_pred):
     """
     Calculate the discriminator loss for the logistic loss function.

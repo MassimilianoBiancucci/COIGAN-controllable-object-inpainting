@@ -10,11 +10,12 @@ max_iter: 800000
 
 batch_size: 8 # batch size for each training process
 num_workers: 6 # dataloader workers
+prefetch: 4
 
 gen_steps: 1 # define how many steps to train the generator before give the turn to the discriminator
 disc_steps: 1 # define how many steps to train the discriminator before give the turn to the generator
 
-use_ema: False # use exponential moving average for the generator
+use_g_ema: False # use exponential moving average for the generator
 use_ref_disc: True # use the reference discriminator for the generator training
 
 mask_base_img: False # If true zero out the base image where the concat masks are 1s, for the input_base_img and for the generator output
@@ -43,6 +44,7 @@ defaults:
   - data: severstal_dataset
   - generator: ffc_resnet_075
   - discriminator: swagan_discriminator # pix2pixhd_nlayer or swagan_discriminator
+  - ref_discriminator: swagan_discriminator
   - optimizers: default_optimizers
   - losses: default_losses
   - logger: default_logger

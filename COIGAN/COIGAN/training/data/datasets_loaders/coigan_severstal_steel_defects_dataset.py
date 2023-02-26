@@ -28,8 +28,8 @@ class CoiganSeverstalSteelDefectsDataset:
         base_dataset: ImageFolder,
         defect_classes: List[str],
         defect_dataloaders: List[ObjectDataloader],
-        ref_dataset: ImageFolder = None,
         shape_dataloaders: List[ShapeObjectDataloader] = None,
+        ref_dataset: ImageFolder = None,
         mask_noise_generator_kwargs: DictConfig = None,
         mask_base_img: bool = False,
         allow_overlap: bool = False,
@@ -99,7 +99,7 @@ class CoiganSeverstalSteelDefectsDataset:
 
         # ref dataset vars
         self.ref_regenerations = 0
-        self.ref_dataset_len = len(ref_dataset)
+        self.ref_dataset_len = len(ref_dataset) if ref_dataset is not None else 0
         self.ref_dataset_idxs = []
 
         # shape dataloaders vars
@@ -321,7 +321,7 @@ class CoiganSeverstalSteelDefectsDataset:
         sample["base"] = base
         base_masked = base.clone()
 
-        sample["ref"] = None if ref is None else ref
+        if ref is not None: sample["ref"] = ref
 
         # Store the union of the shapes used as input of the generator
         sample["gen_input_union_mask"] = union_mask

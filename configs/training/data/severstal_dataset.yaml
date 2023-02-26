@@ -1,4 +1,3 @@
-# @package _group_
 
 dataset_name: severstal-steel-defect # name of the dataset
 dataset_location: ${location.project_home}/datasets/severstal_steel_defect_dataset/test_1 # dataset path
@@ -9,12 +8,17 @@ num_workers: ${num_workers} # dataloader workers
 dataloader_shuffle: false # enabling the dataset shuffling at dataloader level
 seed: 42 # seed for the dataset shuffling
 
+# enable the usage of the reference discriminator
+# so in the dataset creation load the relative datasets
+use_ref_disc: ${use_ref_disc}
+
 # Setting that enable a beahvior that generate for the same sample different shapes in input to the generator
 # and defects in input to the discriminator, probably discouragable with feature_matching loss with high weight.
 differet_shapes: False ########################################################################################
 
 allow_overlap: false # allow overlap between objects in input masks and on the gt objects # WARNING True not implemented yet!
 mask_base_img: ${mask_base_img} # if true zero out the base image where the concat masks are 1s
+
 
 kind: ${data.dataset_name}
 
@@ -24,7 +28,10 @@ augmentation_sets:
 
 # position of the base dataset
 base_dataset_kwargs:
-  root: ${location.data_root_dir}/base_dataset
+  root: ${data.dataset_location}/base_dataset
+
+ref_dataset_kwargs:
+  root: ${data.dataset_location}/tile_train_set
 
 # objects datasets parameters
 object_datasets:
@@ -75,4 +82,4 @@ torch_dataloader_kwargs:
   num_workers: ${data.num_workers}
   pin_memory: true
   drop_last: true
-  prefetch_factor: 4
+  prefetch_factor: ${prefetch}

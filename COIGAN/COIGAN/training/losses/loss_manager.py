@@ -34,7 +34,12 @@ class CoiganLossManager:
         discriminator,
         g_optimizer,
         d_optimizer,
-        device
+        device,
+        use_ref_disc = False,
+        ref_discriminator = None,
+        ref_d_optimizer = None,
+        ref_discriminator_losses = None,
+        ref_discriminator_reg = None
     ):
         """
         Init method of the CoiganLossManager class.
@@ -49,11 +54,18 @@ class CoiganLossManager:
             g_optimizer (torch.optim.Optimizer): the generator's optimizer
             d_optimizer (torch.optim.Optimizer): the discriminator's optimizer
             device (torch.device): the device to use
+
+            ref_discriminator (nn.Module): the reference discriminator
+            ref_d_optimizer (torch.optim.Optimizer): the reference discriminator's optimizer
+            ref_discriminator_losses (Dict): the reference discriminator's losses configuration
+            ref_discriminator_reg (Dict): the reference discriminator's regularization configuration
+
         
         TODO: add the regularization for the generator
         """
 
         self.device = device
+        self.use_ref_disc = use_ref_disc
         self.metrics = {}
 
         ##################################################################
@@ -71,6 +83,15 @@ class CoiganLossManager:
         self.init_discriminator_regularizations(**discriminator_reg)
         self.discriminator = discriminator
         self.d_opt = d_optimizer
+
+        ##################################################################
+        ### Ref discriminator losses
+        ##################################################################
+        if self.use_ref_disc:
+            self.init_ref_discriminator_losses(**ref_discriminator_losses)
+            self.init_ref_discriminator_regularizations(**ref_discriminator_reg)
+            self.ref_discriminator = ref_discriminator
+            self.ref_d_opt = ref_d_optimizer
 
 
     def init_discriminator_losses(
@@ -178,6 +199,109 @@ class CoiganLossManager:
         self.metrics.update(discriminator_losses)
     
 
+    def init_ref_discriminator_losses(
+        self,
+        logistic: Dict = None
+    ):
+        """
+        Init the ref discriminator losses.
+
+        Args:
+            logistic (Dict): the logistic loss configuration
+
+        """
+
+        self.loss_ref_logistic = None
+        if logistic is not None and logistic['weight'] > 0:
+            self.loss_ref_logistic = d_logistic_loss
+            self.loss_ref_logistic_weight = logistic['weight']
+
+
+    def init_ref_discriminator_regularizations(
+        self,
+        d_reg_every: int = 16,
+        r1: Dict = None
+    ):
+        """
+        Ref Discriminator regularization.
+
+        Args:
+            d_reg_every (int): the number of steps between each regularization
+            r1 (Dict): the r1 regularization configurations
+        """
+        self.ref_d_reg_every = d_reg_every
+        self.ref_d_reg_steps_count = 0
+
+        self.ref_r1_reg = None
+        if r1 is not None and r1['weight'] > 0:
+            self.ref_r1_reg = d_r1_loss
+            self.ref_r1_reg_weight = r1['weight']
+        
+
+    def ref_discriminator_regularization(
+        self,
+        real_input
+    ):  # sourcery skip: extract-method, merge-nested-ifs, swap-nested-ifs
+        """
+        Compute the ref discriminator regularization.
+        NOTE: the real input must have the gradients enabled.
+
+        Args:
+            real_input (Tensor): the real input
+        
+        """
+
+        ref_d_regs = {}
+
+        if self.ref_d_reg_steps_count % self.ref_d_reg_every == 0:
+            if self.ref_r1_reg is not None:
+                
+                real_input.requires_grad = True
+                real_pred = self.ref_discriminator(real_input)
+                real_pred = real_pred[0] if isinstance(real_pred, tuple) else real_pred
+
+                # NOTE: the real_pred[0] multiplied by 0 is used to include the gradient of the discriminator in the graph, without uue its value
+                # without it ddp will trow an error considering that some gradients in the graph are not used!!!
+                ref_d_regs["ref_d_r1_loss"] = (self.ref_r1_reg(real_pred, real_input) * self.ref_r1_reg_weight * self.ref_d_reg_every + (0 * real_pred[0]))[0]
+                #check_nan(ref_d_regs['ref_d_r1_loss'])
+
+                # apply the regularization
+                self.ref_discriminator.zero_grad()
+                ref_d_regs["ref_d_r1_loss"].backward()
+                self.ref_d_opt.step()
+
+        self.ref_d_reg_steps_count += 1
+        self.metrics.update(ref_d_regs)
+
+
+    def ref_discriminator_loss(self, fake_score, real_score):
+        """
+        Compute the ref discriminator loss.
+
+        Args:
+            fake_score (Tensor): the fake score
+            real_score (Tensor): the real score
+
+        Returns:
+            Tensor: the discriminator loss
+
+        NOTE: there is only one discriminator loss at this time
+            if more losses will be added the method need some changes.
+
+        """
+        ref_d_loss = {}
+        if self.loss_logistic is not None:
+            ref_d_loss["ref_d_logistic_loss"] = self.loss_ref_logistic(real_score, fake_score) * self.loss_ref_logistic_weight
+            #check_nan(ref_d_loss['ref_d_logistic_loss'])
+
+            # update the discriminator
+            self.ref_discriminator.zero_grad()
+            ref_d_loss["ref_d_logistic_loss"].backward()
+            self.ref_d_opt.step()
+        
+        self.metrics.update(ref_d_loss)
+    
+
     def init_generator_losses(
         self,
         reduction: str = 'mean',
@@ -185,7 +309,8 @@ class CoiganLossManager:
         mse: Dict = None,
         feature_matching: Dict = None,
         resnet_pl: Dict = None,
-        adversarial: Dict = None
+        adversarial: Dict = None,
+        ref_adversarial: Dict = None
     ):
         """
         Init the generator losses.
@@ -215,17 +340,16 @@ class CoiganLossManager:
             self.loss_mse = nn.MSELoss(reduction='mean')
             self.loss_mse_weight = mse['weight']
         
-        self.loss_feature_matching = None
-        if feature_matching is not None and feature_matching['weight'] > 0:
-            self.loss_feature_matching = feature_matching_loss
-            self.loss_feature_matching_weight = feature_matching['weight']
-            self.loss_feature_matching_layers = feature_matching['n_layers']
-        
         self.loss_resnet_pl = None
         if resnet_pl is not None and resnet_pl['weight'] > 0:
             self.loss_resnet_pl = ResNetPL(**resnet_pl).to(self.device)
             self.loss_resnet_pl_weight = resnet_pl['weight']
         
+        self.loss_ref_adversarial = None
+        if ref_adversarial is not None and ref_adversarial['weight'] > 0 and self.use_ref_disc:
+            self.loss_ref_adversarial = g_nonsaturating_loss
+            self.loss_ref_adversarial_weight = ref_adversarial['weight']
+
         self.loss_adversarial = None
         if adversarial is not None and adversarial['weight'] > 0:
             self.loss_adversarial = g_nonsaturating_loss
@@ -289,15 +413,13 @@ class CoiganLossManager:
         self.metrics.update(g_regs)
 
 
-    def generator_loss(self, fake, real, fake_features, real_features, disc_fake_out):
+    def generator_loss(self, fake, real, disc_fake_out, ref_disc_out_fake = None):
         """
         Compute the generator loss.
 
         Args:
             fake(Tensor): the fake image in output of the generator
             real (Tensor): the real image in input of the generator
-            fake_features (List[Tensor]): the fake discriminator features from the generated defects
-            real_features (List[Tensor]): the real discriminator features from the real defects
             disc_fake_out (Tensor): the discriminator output for the fake image
 
         Returns:
@@ -313,11 +435,8 @@ class CoiganLossManager:
             generator_losses["g_loss_mse"] = self.loss_mse(fake, real) * self.loss_mse_weight 
         if self.loss_resnet_pl is not None:
             generator_losses["loss_resnet_pl"] = self.loss_resnet_pl(fake, real) * self.loss_resnet_pl_weight
-        if self.loss_feature_matching is not None:
-            generator_losses["g_loss_fm"] = self.loss_feature_matching(
-                fake_features[self.loss_feature_matching_layers:], 
-                real_features[self.loss_feature_matching_layers:]
-            ) * self.loss_feature_matching_weight
+        if self.loss_ref_adversarial is not None and self.use_ref_disc:
+            generator_losses["g_loss_ref_adv"] = self.loss_ref_adversarial(ref_disc_out_fake) * self.loss_ref_adversarial_weight
         if self.loss_adversarial is not None:
             generator_losses["g_loss_adv"] = self.loss_adversarial(disc_fake_out) * self.loss_adversarial_weight
 

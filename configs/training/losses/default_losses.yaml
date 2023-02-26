@@ -1,7 +1,7 @@
 
 ######################################
 ### Loss manager parameters
-
+use_ref_disc: ${use_ref_disc} # enable the usage of the reference discriminator
 
 ######################################
 ### Generator losses parameters
@@ -9,14 +9,13 @@ generator_losses:
   reduction: sum # mean, sum
 
   l1:
-    weight: 5
-    
-  adversarial:
-    weight: 30
+    weight: 3
 
-  feature_matching:
+  adversarial:
+    weight: 20
+  
+  ref_adversarial:
     weight: 10
-    n_layers: 4 # number of layers to use for feature matching (starting from the last one)
 
   resnet_pl:
     weight: 5
@@ -39,4 +38,16 @@ discriminator_losses:
 discriminator_reg: # TODO sistema i parametri
   d_reg_every: 16 # n steps between 2 discriminator updarte regularizations
   r1:
-    weight: 10
+    weight: 3
+
+######################################
+### Discriminator losses parameters
+ref_discriminator_losses:
+  logistic:
+    weight: 5
+
+# discriminator regularitions
+ref_discriminator_reg: # TODO sistema i parametri
+  d_reg_every: 16 # n steps between 2 discriminator updarte regularizations
+  r1:
+    weight: 3

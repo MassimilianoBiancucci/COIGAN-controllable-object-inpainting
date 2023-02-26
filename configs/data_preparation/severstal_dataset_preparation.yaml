@@ -63,8 +63,8 @@ split_mode: fair # specify the splitting mode, random or fair
 dataset_splitter_kwargs:
   dataset_path: ${jsonl_dataset_dir}
   output_dir: ${dataset_dir}/${dataset_name}
-  train_ratio: 0.3
-  test_ratio: 0.7
+  train_ratio: 0.5
+  test_ratio: 0.5
   binary: ${binary}
   target_field: polygons # needed for the fair splitting (ignored for the random splitting)
   tile_size: ${original_tile_size}

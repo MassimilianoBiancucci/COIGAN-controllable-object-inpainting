@@ -122,7 +122,7 @@ def make_severstal_steel_defect(config: DictConfig, seed: int = None):
         base_dataset,
         config.object_datasets.classes,
         object_dataloaders,
-        shape_dataloaders,
+        shape_dataloaders=shape_dataloaders,
         ref_dataset=ref_dataset,
         seed=seed,
         **config.coigan_dataset_kwargs
@@ -135,6 +135,7 @@ def make_severstal_steel_defect(config: DictConfig, seed: int = None):
 # Debugging section #
 if __name__ == "__main__":
     import hydra
+    import torch
     from tqdm import tqdm
     from COIGAN.utils.common_utils import sample_data
     from COIGAN.utils.debug_utils import check_nan
@@ -146,6 +147,7 @@ if __name__ == "__main__":
 
         for sample in tqdm(dataloader):
             base_image =        check_nan(sample["base"]) # [base_r, base_g, base_b] the original image without any masking
+            ref_image =         check_nan(sample["ref"]) # [ref_r, ref_g, ref_b] the reference image used in the discriminator
             gen_in =            check_nan(sample["gen_input"]) # [base_r, base_g, base_b, mask_0, mask_1, mask_2, mask_3]
             gen_in_orig_masks = check_nan(sample["orig_gen_input_masks"]) # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
             disc_in_true =      check_nan(sample["disc_input"])# [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    

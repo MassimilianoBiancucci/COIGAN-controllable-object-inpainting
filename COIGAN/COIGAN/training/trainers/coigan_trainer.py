@@ -70,6 +70,7 @@ class COIGANtrainer:
 
         # other process variables
         self.mask_base_img = self.config.mask_base_img
+        self.use_g_ema = self.config.use_g_ema
         self.use_ref_disc = self.config.use_ref_disc
 
         # create the generator, discriminator and EMA generator
@@ -78,7 +79,7 @@ class COIGANtrainer:
         self.ref_discriminator = make_discriminator(**config.ref_discriminator).to(rank) if self.use_ref_disc else None
 
         # if in the first process, create the moving average generator
-        if self.device == 0 and self.config.use_ema:
+        if self.device == 0 and self.use_g_ema:
             self.g_ema = make_generator(**config.generator).to(rank)
             self.g_ema.eval()
             # Initialize the generator moving average to be the same as the generator
@@ -104,29 +105,18 @@ class COIGANtrainer:
                 output_device=self.device,
                 broadcast_buffers=False
             )
-
             self.discriminator = nn.parallel.DistributedDataParallel(
                 self.discriminator,
                 device_ids=[self.device],
                 output_device=self.device,
                 broadcast_buffers=False
             )
-
-
-        if self.config.distributed:
-            # if distributed, save a reference of the modules of the generator and discriminator
-            # outside the data parallel wrapper, will be used for save the checkpoint
-            self.g_module = self.generator.module
-            self.d_module = self.discriminator.module
-
-            if self.use_ref_disc:
-                self.ref_discriminator = nn.parallel.DistributedDataParallel(
-                    self.ref_discriminator,
-                    device_ids=[self.device],
-                    output_device=self.device,
-                    broadcast_buffers=False
-                )
-        
+            self.ref_discriminator = nn.parallel.DistributedDataParallel(
+                self.ref_discriminator,
+                device_ids=[self.device],
+                output_device=self.device,
+                broadcast_buffers=False
+            ) if self.use_ref_disc else None
 
         # save a reference to the unwrapped modules
         if self.config.distributed:
@@ -141,20 +131,19 @@ class COIGANtrainer:
             # anyway will be used for save the checkpoint
             self.g_module = self.generator
             self.d_module = self.discriminator
-        
-
             self.ref_d_module = self.ref_discriminator
         
 
         # load the loss manager
         self.loss_mng = CoiganLossManager(
             **config.losses,
-            generator =     self.generator,
-            discriminator = self.discriminator,
-            ref_discriminator = self.ref_discriminator,
-            g_optimizer =   self.g_optim,
-            d_optimizer =   self.d_optim,
-            device =        self.device
+            generator =         self.generator,
+            discriminator =     self.discriminator,
+            ref_discriminator=  self.ref_discriminator,
+            g_optimizer =       self.g_optim,
+            d_optimizer =       self.d_optim,
+            ref_d_optimizer=    self.ref_d_optim,
+            device =            self.device
         )
 
         # initialize wandb
@@ -235,7 +224,7 @@ class COIGANtrainer:
         
         # setup_training training pipeline variables
         # used to alternate between generator and discriminator training
-        self.d_limit_step = self.config.gen_steps
+        self.d_limit_step = self.config.disc_steps
         self.d_step = 0
 
         self.g_limit_step = self.config.gen_steps
@@ -244,9 +233,12 @@ class COIGANtrainer:
         self.turn = True # True -> discriminator turn, False -> generator turn
         
         last_d_loss = 0
+        last_ref_d_loss = 0
         last_g_loss = 0
         last_real_score = 0
         last_fake_score = 0
+        last_ref_real_score = 0
+        last_ref_fake_score = 0
 
         for i in range(self.config.start_iter, self.config.max_iter):
             
@@ -265,7 +257,7 @@ class COIGANtrainer:
 
             #unpack the data
             base_image = sample["base"] # [base_r, base_g, base_b] the original image without any masking
-            ref_image = sample["ref"] # [ref_r, ref_g, ref_b] the reference image (if config.use_ref_disc = False then ref = None)
+            if "ref" in sample: ref_image = sample["ref"].to(self.device) # [ref_r, ref_g, ref_b] the reference image (if config.use_ref_disc = False then ref = None)
             gen_in = sample["gen_input"].to(self.device) # [base_r, base_g, base_b, mask_0, mask_1, mask_2, mask_3]
             gen_in_orig_masks = sample["orig_gen_input_masks"] # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
             disc_in_true = sample["disc_input"].to(self.device) # [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
@@ -288,8 +280,8 @@ class COIGANtrainer:
                 disc_in_fake = self.extract_defects(fake_image, gen_in_orig_masks)
                 
                 #----> compute the discriminator outputs for the real and fake images
-                disc_out_true, disc_true_features = self.discriminator(disc_in_true)
-                disc_out_fake, disc_fake_features = self.discriminator(disc_in_fake)
+                disc_out_true, _ = self.discriminator(disc_in_true)
+                disc_out_fake, _ = self.discriminator(disc_in_fake)
 
                 self.loss_mng.metrics.update({
                     "real_score": disc_out_true.mean(),
@@ -298,8 +290,8 @@ class COIGANtrainer:
 
                 if self.use_ref_disc:
                     #----> compute the reference discriminator outputs for the real and fake images
-                    ref_disc_out_true, ref_disc_true_features = self.ref_discriminator(ref_image)
-                    ref_disc_out_fake, ref_disc_fake_features = self.ref_discriminator(fake_image)
+                    ref_disc_out_true, _ = self.ref_discriminator(ref_image)
+                    ref_disc_out_fake, _ = self.ref_discriminator(fake_image)
 
                     self.loss_mng.metrics.update({
                         "ref_real_score": ref_disc_out_true.mean(),
@@ -312,6 +304,14 @@ class COIGANtrainer:
 
                 # apply regularization to the discriminator
                 self.loss_mng.discriminator_regularization(disc_in_true)
+
+                if self.use_ref_disc:
+                    # compute the reference discriminator losses
+                    self.loss_mng.ref_discriminator_loss(ref_disc_out_fake, ref_disc_out_true)
+
+                    # apply regularization to the reference discriminator
+                    self.loss_mng.ref_discriminator_regularization(ref_image)
+
 
                 # determine the next turn owner
                 self.d_step += 1
@@ -335,21 +335,22 @@ class COIGANtrainer:
                 disc_in_fake = self.extract_defects(fake_image, gen_in_orig_masks)
 
                 #----> compute the discriminator outputs for the fake and real images
-                disc_out_true, disc_true_features = self.discriminator(disc_in_true)
-                disc_out_fake, disc_fake_features = self.discriminator(disc_in_fake)
+                #disc_out_true, _ = self.discriminator(disc_in_true)
+                disc_out_fake, _ = self.discriminator(disc_in_fake)
                 
                 self.loss_mng.metrics.update({
-                    "real_score": disc_out_true.mean(),
+                    #"real_score": disc_out_true.mean(),
                     "fake_score": disc_out_fake.mean(),
                 })
 
+                ref_disc_out_fake = None
                 if self.use_ref_disc:
                     #----> compute the reference discriminator outputs for the real and fake images
-                    ref_disc_out_true, ref_disc_true_features = self.ref_discriminator(ref_image)
-                    ref_disc_out_fake, ref_disc_fake_features = self.ref_discriminator(fake_image)
+                    #ref_disc_out_true, _ = self.ref_discriminator(ref_image)
+                    ref_disc_out_fake, _ = self.ref_discriminator(fake_image)
 
                     self.loss_mng.metrics.update({
-                        "ref_real_score": ref_disc_out_true.mean(),
+                        #"ref_real_score": ref_disc_out_true.mean(),
                         "ref_fake_score": ref_disc_out_fake.mean(),
                     })
 
@@ -364,11 +365,10 @@ class COIGANtrainer:
 
                 # compute the generator losses
                 self.loss_mng.generator_loss(
-                    fake_image_4loss, # TODO add setting to manage if the defects must be masked or not
-                    base_image_4loss, # TODO add setting to manage if the defects must be masked or not
-                    disc_fake_features,
-                    disc_true_features,
-                    disc_out_fake
+                    fake_image_4loss,
+                    base_image_4loss,
+                    disc_out_fake,
+                    ref_disc_out_fake
                 )
 
                 if self.device == 0 :
@@ -400,12 +400,18 @@ class COIGANtrainer:
                 last_g_loss = reduced_metrics["g_loss"] if "g_loss" in reduced_metrics else last_g_loss
                 last_real_score = reduced_metrics["real_score"] if "real_score" in reduced_metrics else last_real_score
                 last_fake_score = reduced_metrics["fake_score"] if "fake_score" in reduced_metrics else last_fake_score
-                pbar.set_description(
-                    (
-                        f"d: {last_d_loss:.4f}; g: {last_g_loss:.4f}; "
-                        f"real_s: {last_real_score:.4f}; fake_s: {last_fake_score:.4f}"
+
+                if self.use_ref_disc:
+                    last_ref_d_loss = reduced_metrics["ref_d_logistic_loss"] if "ref_d_logistic_loss" in reduced_metrics else last_ref_d_loss
+                    last_ref_real_score = reduced_metrics["ref_real_score"] if "ref_real_score" in reduced_metrics else last_ref_real_score
+                    last_ref_fake_score = reduced_metrics["ref_fake_score"] if "ref_fake_score" in reduced_metrics else last_ref_fake_score
+                    pbar.set_description(
+                        (f"d: {last_d_loss:.4f}; ref_d: {last_ref_d_loss}; g: {last_g_loss:.4f}; real_s: {last_real_score:.4f}; fake_s: {last_fake_score:.4f}; ref_real_s: {last_ref_real_score:.4f}; ref_fake_s: {last_ref_fake_score:.4f}")
                     )
-                )
+                else:
+                    pbar.set_description(
+                        (f"d: {last_d_loss:.4f}; g: {last_g_loss:.4f}; real_s: {last_real_score:.4f}; fake_s: {last_fake_score:.4f}")
+                    )
 
                 # log the results locally and on wandb
                 self.datalogger.log_step_results(i, reduced_metrics)

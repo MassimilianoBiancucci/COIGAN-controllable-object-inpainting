@@ -8,3 +8,8 @@ discriminator:
   kind: adamw
   lr: 0.002
   betas: [0.0, 0.998] # [0.0, 0.99] for adamw
+
+ref_discriminator:
+  kind: adamw
+  lr: 0.002
+  betas: [0.0, 0.998] # [0.0, 0.99] for adamw

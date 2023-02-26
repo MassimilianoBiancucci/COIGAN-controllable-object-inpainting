@@ -542,12 +542,14 @@ class Discriminator(nn.Module):
 
         batch, channel, height, width = out.shape
         group = min(batch, self.stddev_group)
+
         stddev = out.view(
             group, -1, self.stddev_feat, channel // self.stddev_feat, height, width
         )
         stddev = torch.sqrt(stddev.var(0, unbiased=False) + 1e-8)
         stddev = stddev.mean([2, 3, 4], keepdims=True).squeeze(2)
         stddev = stddev.repeat(group, 1, height, width)
+
         out = torch.cat([out, stddev], 1)
 
         out = self.final_conv(out)
