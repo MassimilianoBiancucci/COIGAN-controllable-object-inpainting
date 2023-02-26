@@ -34,7 +34,7 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
         binary: bool = True,
         n_workers: int = 1,
         q_size: int = 10,
-        img_evaluator: ImageEvaluatorBase = None,
+        image_evaluator: ImageEvaluatorBase = None,
     ):
 
         super().__init__(
@@ -57,7 +57,7 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
             tile_size = tuple(tile_size)
         self.tile_size = tile_size
 
-        self.img_evaluator = img_evaluator
+        self.image_evaluator = image_evaluator
 
         # process variables
         self.n_workers = cpu_count() if n_workers == -1 else n_workers
@@ -94,7 +94,7 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
                 masks
             )
 
-            images, metadata_lst = self.preprocess(image, masks, self.tile_size, self.img_evaluator)
+            images, metadata_lst = self.preprocess(image, masks, self.tile_size, self.image_evaluator)
 
             for img, metadata in zip(images, metadata_lst):
                 img_name = f"{idx}.png"
@@ -130,7 +130,8 @@ class TileDatasetPreprocessor(JsonLineDatasetBaseGenerator):
                     self.data_dir,
                     self.tile_size,
                     classes=self.input_dataset.classes,
-                    masks_fields=self.input_dataset.masks_fields
+                    masks_fields=self.input_dataset.masks_fields,
+                    image_evaluator=self.image_evaluator,
                 )
             )
 

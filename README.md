@@ -98,7 +98,7 @@ the var is present inside the config file:
 ```yaml
 /home/ubuntu/COIGAN-controllable-object-inpainting/configs/data_preparation/severstal_dataset_preparation.yaml
 ```
-</br></br>
+</br>
 
 ### Data preparation settings
 In this section are explained the principal variables of the dataset preparation script, to customize the dataset generated.
