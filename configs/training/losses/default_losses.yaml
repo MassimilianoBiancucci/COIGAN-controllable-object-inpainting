@@ -9,7 +9,14 @@ generator_losses:
   reduction: sum # mean, sum
 
   l1:
-    weight: 3
+    weight: 0
+
+  l1_smooth_masked:
+    weight: 8 # overall weight of the loss
+    kwargs:
+      obj_weight: 0.0 # weight of the loss in the object area
+      bg_weight: 1.0 # weight of the loss in the background area
+      kernel_size: 51 # size of the linear kernel used to smooth the mask
 
   adversarial:
     weight: 20

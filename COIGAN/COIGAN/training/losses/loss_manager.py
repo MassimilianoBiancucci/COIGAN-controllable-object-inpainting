@@ -8,8 +8,8 @@ from omegaconf import OmegaConf
 from typing import Dict, List, Tuple, Union
 
 
+from COIGAN.training.losses.masked_losses import SmoothMaskedL1, ResNetPLMasked
 from COIGAN.training.losses.perceptual import ResNetPL
-from COIGAN.training.losses.feature_matching import feature_matching_loss
 from COIGAN.training.losses.common_losses import (
     d_logistic_loss,
     d_r1_loss,
@@ -306,6 +306,7 @@ class CoiganLossManager:
         self,
         reduction: str = 'mean',
         l1: Dict = None,
+        l1_smooth_masked = None,
         mse: Dict = None,
         feature_matching: Dict = None,
         resnet_pl: Dict = None,
@@ -335,6 +336,11 @@ class CoiganLossManager:
             self.loss_l1 = nn.L1Loss(reduction='mean')
             self.loss_l1_weight = l1['weight']
         
+        self.loss_l1_smooth_masked = None
+        if l1_smooth_masked is not None and l1_smooth_masked['weight'] > 0:
+            self.loss_l1_smooth_masked_weight = l1_smooth_masked['weight']
+            self.loss_l1_smooth_masked = SmoothMaskedL1(**l1_smooth_masked.kwargs)
+
         self.loss_mse = None
         if mse is not None and mse['weight'] > 0:
             self.loss_mse = nn.MSELoss(reduction='mean')
@@ -413,7 +419,14 @@ class CoiganLossManager:
         self.metrics.update(g_regs)
 
 
-    def generator_loss(self, fake, real, disc_fake_out, ref_disc_out_fake = None):
+    def generator_loss(
+        self, 
+        fake, 
+        real, 
+        disc_fake_out, 
+        ref_disc_out_fake = None, 
+        input_masks = None
+    ):
         """
         Compute the generator loss.
 
@@ -421,6 +434,8 @@ class CoiganLossManager:
             fake(Tensor): the fake image in output of the generator
             real (Tensor): the real image in input of the generator
             disc_fake_out (Tensor): the discriminator output for the fake image
+            ref_disc_out_fake (Tensor): the reference discriminator output for the fake image
+            input_masks (Tensor): the input masks passed to the generator
 
         Returns:
             Tensor: the generator loss
@@ -431,10 +446,16 @@ class CoiganLossManager:
         # compute the generator loss
         if self.loss_l1 is not None:
             generator_losses["g_loss_l1"] = self.loss_l1(fake, real) * self.loss_l1_weight
+        if self.loss_l1_smooth_masked is not None:
+            generator_losses["g_loss_l1_smasked"] = self.loss_l1_smooth_masked(fake, real, input_masks) * self.loss_l1_smooth_masked_weight
+
         if self.loss_mse is not None:
             generator_losses["g_loss_mse"] = self.loss_mse(fake, real) * self.loss_mse_weight 
+        
         if self.loss_resnet_pl is not None:
             generator_losses["loss_resnet_pl"] = self.loss_resnet_pl(fake, real) * self.loss_resnet_pl_weight
+        
+
         if self.loss_ref_adversarial is not None and self.use_ref_disc:
             generator_losses["g_loss_ref_adv"] = self.loss_ref_adversarial(ref_disc_out_fake) * self.loss_ref_adversarial_weight
         if self.loss_adversarial is not None:

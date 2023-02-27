@@ -262,7 +262,7 @@ class COIGANtrainer:
             gen_in_orig_masks = sample["orig_gen_input_masks"] # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
             disc_in_true = sample["disc_input"].to(self.device) # [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
             union_mask = sample["gen_input_union_mask"] # [union_mask] the union mask of all the masks used in the generator input
-
+            
             #######################################################################################
             #######################################################################################
             # train the discriminator #############################################################
