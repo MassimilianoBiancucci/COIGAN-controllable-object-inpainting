@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from typing import Dict, List, Tuple, Union
 
 
-from COIGAN.training.losses.masked_losses import SmoothMaskedL1, ResNetPLMasked
+from COIGAN.training.losses.masked_losses import SmoothMaskedL1, ResNetPLSmoothMasked
 from COIGAN.training.losses.perceptual import ResNetPL
 from COIGAN.training.losses.common_losses import (
     d_logistic_loss,
@@ -310,6 +310,7 @@ class CoiganLossManager:
         mse: Dict = None,
         feature_matching: Dict = None,
         resnet_pl: Dict = None,
+        resnet_pl_smooth_masked = None,
         adversarial: Dict = None,
         ref_adversarial: Dict = None
     ):
@@ -351,6 +352,11 @@ class CoiganLossManager:
             self.loss_resnet_pl = ResNetPL(**resnet_pl).to(self.device)
             self.loss_resnet_pl_weight = resnet_pl['weight']
         
+        self.loss_resnet_pl_smooth_masked = None
+        if resnet_pl_smooth_masked is not None and resnet_pl_smooth_masked['weight'] > 0:
+            self.loss_resnet_pl_smooth_masked = ResNetPLSmoothMasked(**resnet_pl_smooth_masked.kwargs)
+            self.loss_resnet_pl_smooth_masked_weight = resnet_pl_smooth_masked['weight']
+
         self.loss_ref_adversarial = None
         if ref_adversarial is not None and ref_adversarial['weight'] > 0 and self.use_ref_disc:
             self.loss_ref_adversarial = g_nonsaturating_loss
@@ -454,7 +460,9 @@ class CoiganLossManager:
         
         if self.loss_resnet_pl is not None:
             generator_losses["loss_resnet_pl"] = self.loss_resnet_pl(fake, real) * self.loss_resnet_pl_weight
-        
+        if self.loss_resnet_pl_smooth_masked is not None:
+            generator_losses["loss_resnet_pl_smasked"] = self.loss_resnet_pl_smooth_masked(fake, real, input_masks) * self.loss_resnet_pl_smooth_masked_weight        
+
 
         if self.loss_ref_adversarial is not None and self.use_ref_disc:
             generator_losses["g_loss_ref_adv"] = self.loss_ref_adversarial(ref_disc_out_fake) * self.loss_ref_adversarial_weight

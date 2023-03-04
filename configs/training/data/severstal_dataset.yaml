@@ -52,12 +52,12 @@ object_datasets:
 # shape dataloader parameters
 shape_dataloader_kwargs:
   sample_shapes: [0, 1, 2, 3]
-  shape_probs: [0.2, 0.5, 0.2, 0.1]
+  shape_probs: [0.4, 0.475, 0.1, 0.025]
 
 # object dataloader parameters
 object_dataloader_kwargs:
   sample_defects: [0, 1, 2, 3]
-  defects_probs: [0.2, 0.5, 0.2, 0.1]
+  defects_probs: [0.4, 0.475, 0.1, 0.025]
 
 coigan_dataset_kwargs:
   allow_overlap: ${data.allow_overlap} # allow overlap between objects in input masks and on the gt objects

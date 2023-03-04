@@ -1,7 +1,7 @@
 #####################################################################################
 ### ATTENTION : This var must be setted with the actual path to the project home! ###
-#project_home: /home/max/thesis/COIGAN-controllable-object-inpainting
-project_home: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
+project_home: /home/max/thesis/COIGAN-controllable-object-inpainting
+#project_home: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
 #####################################################################################
 
 data_root_dir: ${data.dataset_location}

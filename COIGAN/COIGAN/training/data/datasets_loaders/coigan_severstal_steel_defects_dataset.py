@@ -33,6 +33,7 @@ class CoiganSeverstalSteelDefectsDataset:
         mask_noise_generator_kwargs: DictConfig = None,
         mask_base_img: bool = False,
         allow_overlap: bool = False,
+        force_non_empty: bool = True,
         shuffle: bool = True,
         seed: int = 42,
         length: int = None
@@ -72,6 +73,7 @@ class CoiganSeverstalSteelDefectsDataset:
             mask_noise_generator_kwargs: a dictionary containing the kwargs for the mask_noise_generator.
             mask_base_img: if True, the base image will be masked with the defects masks.
             allow_overlap: specify if the defects masks can overlap between different classes or not.
+            force_non_empty: if True force the shapes and objects to be non empty, at least one shape and one object of one class will be in the sample.
             shuffle: specify if the dataset should be shuffled or not.
             seed: seed used to shuffle the dataset.
             lenght: specify the lenght of the dataset. If None, the lenght of the base dataset is used.
@@ -123,6 +125,7 @@ class CoiganSeverstalSteelDefectsDataset:
         # other settings
         self.mask_base_img = mask_base_img
         self.allow_overlap = allow_overlap
+        self.force_non_empty = force_non_empty
         self.shuffle = shuffle
         self.random = Random(seed)
 
@@ -292,8 +295,14 @@ class CoiganSeverstalSteelDefectsDataset:
         union_defect = torch.zeros(base.shape[-2:])
         defect_dataloaders_idxs = list(range(len(self.defect_dataloaders)))
         self.random.shuffle(defect_dataloaders_idxs)
+        force_defect = False
         for idx in defect_dataloaders_idxs:
-            defect, dafect_mask, union_defect = self.defect_dataloaders[idx].generate_random_sample(union_defect)
+            if self.force_non_empty and defect_dataloaders_idxs[-1] == idx:
+                # if this is the last defect added, check if there is at least another defect in union_defect
+                # otherwise force the last generator to add a defect
+                if torch.sum(union_defect) == 0:
+                    force_defect = True
+            defect, dafect_mask, union_defect = self.defect_dataloaders[idx].generate_random_sample(union_defect, force_defect)
             defects[idx] = defect
             defects_maks[idx] = dafect_mask.unsqueeze(0)
 
@@ -306,12 +315,18 @@ class CoiganSeverstalSteelDefectsDataset:
             union_mask = torch.zeros(base.shape[-2:])
             shape_dataloaders_idxs = list(range(len(self.shape_dataloaders)))
             self.random.shuffle(shape_dataloaders_idxs)
+            force_shape = False
             for idx in shape_dataloaders_idxs:
-                mask, union_mask = self.shape_dataloaders[idx].generate_random_sample(union_mask)
+                if self.force_non_empty and shape_dataloaders_idxs[-1] == idx:
+                    # if this is the last shape added, check if there is at least another shape in union_mask
+                    # otherwise force the last generator to add a shape
+                    if torch.sum(union_mask) == 0:
+                        force_shape = True
+                mask, union_mask = self.shape_dataloaders[idx].generate_random_sample(union_mask, force_shape)
                 masks[idx] = mask.unsqueeze(0)
         else:
             # if no shape dataloader are provided, as masks and union_mask
-            # use the union_defect tensor. THis way the defects passed to 
+            # use the union_defect tensor. This way the defects passed to 
             # the generator and the discriminator are the same.
             masks = defects_maks
             union_mask = union_defect
@@ -492,7 +507,7 @@ if __name__ == "__main__":
                 augmentor=shape_augmentor
             ),
             sample_shapes=[0, 1, 2, 3],
-            shape_probs=[0.2, 0.5, 0.2, 0.1]
+            shape_probs=[0.4, 0.45, 0.1, 0.05]
         ) for object_dataset_path in object_datasets_paths
     ]
 
@@ -505,7 +520,7 @@ if __name__ == "__main__":
                 augmentor=shape_augmentor,
             ),
             sample_defects=[0, 1, 2, 3],
-            defects_probs=[0.2, 0.5, 0.2, 0.1]
+            defects_probs=[0.4, 0.45, 0.1, 0.05]
         ) for object_dataset_path in object_datasets_paths
     ]
 
@@ -514,10 +529,11 @@ if __name__ == "__main__":
         base_dataset,
         ["defect_1", "defect_2", "defect_3", "defect_4"],
         object_dataloaders,
-        #shape_dataloaders,
+        shape_dataloaders,
         ref_dataset=ref_dataset,
         mask_base_img = True,
         allow_overlap = False,
+        force_non_empty=True,
         length = 100000,
         mask_noise_generator_kwargs = {
             "kind": "multiscale",
@@ -525,11 +541,11 @@ if __name__ == "__main__":
                 "base_generator_kwargs": {
                     "kind": "gaussian",
                     "kind_kwargs": {
-                        "mean": 0.0,
-                        "std": 0.2
+                        "mean": 0.5,
+                        "std": 0.08
                     }
                 },
-                "scales": [1, 3, 6, 12, 24],
+                "scales": [1, 2, 4],
                 "strategy": "replace"
             }
         }

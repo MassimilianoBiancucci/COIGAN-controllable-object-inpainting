@@ -66,13 +66,20 @@ class ObjectDataloader:
                 raise ValueError(f"defects_probs must have the same length of sample_defects = {len(self.sample_defects)}.")
             elif sum(defects_probs) != 1:
                 # normalize the defects probabilities
-                LOGGER.debug("The sum of the defects probabilities is not 1. The probabilities will be normalized.")
-                probs_sum = sum(defects_probs)
-                LOGGER.debug(f"defects_probs = {defects_probs}, sum = {probs_sum}")
-                defects_probs = [prob / probs_sum for prob in defects_probs]
-                LOGGER.debug(f"normalized_defects_probs = {defects_probs}, sum = {sum(defects_probs)}")
-
+                defects_probs = np.array(defects_probs) / sum(defects_probs)
             self.defects_probs = defects_probs
+        
+        # define a list of defects numbers that exclude the 0 defects
+        # and a second list of probs that exclude the prob of the o defects
+        # with probs normalized
+        self.sample_defects_nz = []
+        self.defects_probs_nz = []
+        for defects_n, defects_prob in zip(self.sample_defects, self.defects_probs):
+            if defects_n != 0:
+                self.sample_defects_nz.append(defects_n)
+                self.defects_probs_nz.append(defects_prob)
+        self.defects_probs_nz = np.array(self.defects_probs_nz) / sum(self.defects_probs_nz)
+
 
         self.tile_size = tile_size if isinstance(tile_size, (list, tuple)) else (tile_size, tile_size)
 
@@ -99,13 +106,14 @@ class ObjectDataloader:
             self.random.shuffle(self.random_idxs)
     
 
-    def generate_random_sample(self, avoid_mask: torch.Tensor = None):
+    def generate_random_sample(self, avoid_mask: torch.Tensor = None, force_non_empty: bool = False):
         """
             Generate a random sample of the dataset.
 
             Args:
                 avoid_mask: mask to avoid when sampling the shapes.
                     used in case the shapes should avoid to overlap with other objects in other layers.
+                force_non_empty (bool) : if True, the sampler will add at least one object to the image.
         """
 
         # if the avoid mask is not None, the shapes should match the tile size
@@ -119,7 +127,10 @@ class ObjectDataloader:
         
         # sample the number of shapes to place in the image
         # considering the shapes probabilities
-        num_defects = self.random.choices(self.sample_defects, weights=self.defects_probs)[0]
+        if not force_non_empty:
+            num_defects = self.random.choices(self.sample_defects, weights=self.defects_probs)[0]
+        else:
+            num_defects = self.random.choices(self.sample_defects_nz, weights=self.defects_probs_nz)[0]
 
         # extract from random_idxs num_shapes random indexes, removing it from the list
         if len(self.random_idxs) < num_defects:

@@ -73,11 +73,19 @@ class ShapeObjectDataloader:
             if len(shape_probs) != len(self.sample_shapes):
                 raise ValueError(f"shape_probs must have the same length of sample_shapes = {len(self.sample_shapes)}.")
             elif np.sum(shape_probs) != 1:
-                LOGGER.debug("The sum of the shape_probs must be equal to 1. Normalizing the probabilities...")
-                probs_sum = np.sum(shape_probs)
-                shape_probs = [prob / probs_sum for prob in shape_probs]
-                LOGGER.debug(f"New shape_probs: {shape_probs}")
+                shape_probs = np.array(shape_probs) / np.sum(shape_probs)
             self.shapes_probs = shape_probs
+
+        # define a list of defects numbers that exclude the 0
+        # and a second list of probs that exclude the prob of 0 shapes
+        # with probs normalized
+        self.sample_shapes_nz = []
+        self.shapes_probs_nz = []
+        for shape_n, shape_prob in zip(self.sample_shapes, self.shapes_probs):
+            if shape_n != 0:
+                self.sample_shapes_nz.append(shape_n)
+                self.shapes_probs_nz.append(shape_prob)
+        self.shapes_probs_nz = np.array(self.shapes_probs_nz) / sum(self.shapes_probs_nz)
 
         self.tile_size = tile_size if isinstance(tile_size, (list, tuple)) else (tile_size, tile_size)
 
@@ -107,7 +115,7 @@ class ShapeObjectDataloader:
             self.random.shuffle(self.random_idxs)
     
 
-    def generate_random_sample(self, avoid_mask: Optional[torch.Tensor] = None):
+    def generate_random_sample(self, avoid_mask: Optional[torch.Tensor] = None, force_non_empty: bool = False):
         """
             Generate a random sample of the dataset.
         """
@@ -116,8 +124,11 @@ class ShapeObjectDataloader:
 
         # sample the number of shapes to place in the image
         # considering the shapes probabilities
-        num_shapes = self.random.choices(self.sample_shapes, weights=self.shapes_probs)[0]
-        
+        if not force_non_empty:
+            num_shapes = self.random.choices(self.sample_shapes, weights=self.shapes_probs)[0]
+        else:
+            num_shapes = self.random.choices(self.sample_shapes_nz, weights=self.shapes_probs_nz)[0]
+
         # extract from random_idxs num_shapes random indexes, removing it from the list
         if len(self.random_idxs) < num_shapes:
             self.regenerate_random_idxs()
@@ -130,7 +141,7 @@ class ShapeObjectDataloader:
         _avoid_mask = avoid_mask
         for i in range(num_shapes):
             tile, _avoid_mask = self.apply_shape(
-                tile, 
+                tile,
                 shapes[i].squeeze(0),
                 self.random,
                 avoid_mask=_avoid_mask
