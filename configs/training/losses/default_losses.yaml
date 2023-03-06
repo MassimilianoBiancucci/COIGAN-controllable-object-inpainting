@@ -16,30 +16,32 @@ generator_losses:
   l1_smooth_masked:
     weight: 5 # overall weight of the loss
     kwargs:
+      channels: ${data.object_datasets.n} # number of channels of the mask, equal to the number of classes
       obj_weight: 0.1 # weight of the loss in the object area
       bg_weight: 1.0 # weight of the loss in the background area
       kernel_size: 31 # size of the linear kernel used to smooth the mask
 
   adversarial:
     weight: 20
-  
+
   ref_adversarial:
     weight: 8
 
   resnet_pl:
     weight: 0
-    weights_path: ${location.loss_models}
+    kwargs:
+      weights_path: ${location.loss_models}
 
   # same as resnet_pl but with a smooth mask applied to change weight 
   # near and over the objects
   resnet_pl_smooth_masked:
-    weight: 5
+    weight: 0.3
     kwargs:
+      channels: ${data.object_datasets.n} # number of channels of the mask, equal to the number of classes
       weights_path: ${location.loss_models}
       obj_weight: 0.1 # weight of the loss in the object area
       bg_weight: 1.0 # weight of the loss in the background area
       kernel_size: 31 # size of the linear kernel used to smooth the mask
-
 
 # genrator regularitions
 generator_reg:

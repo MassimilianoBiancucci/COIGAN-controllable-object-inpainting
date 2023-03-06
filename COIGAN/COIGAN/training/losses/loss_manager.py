@@ -340,7 +340,10 @@ class CoiganLossManager:
         self.loss_l1_smooth_masked = None
         if l1_smooth_masked is not None and l1_smooth_masked['weight'] > 0:
             self.loss_l1_smooth_masked_weight = l1_smooth_masked['weight']
-            self.loss_l1_smooth_masked = SmoothMaskedL1(**l1_smooth_masked.kwargs)
+            self.loss_l1_smooth_masked = SmoothMaskedL1(
+                device=self.device,
+                **l1_smooth_masked.kwargs
+                )
 
         self.loss_mse = None
         if mse is not None and mse['weight'] > 0:
@@ -349,12 +352,15 @@ class CoiganLossManager:
         
         self.loss_resnet_pl = None
         if resnet_pl is not None and resnet_pl['weight'] > 0:
-            self.loss_resnet_pl = ResNetPL(**resnet_pl).to(self.device)
+            self.loss_resnet_pl = ResNetPL(**resnet_pl.kwargs).to(self.device)
             self.loss_resnet_pl_weight = resnet_pl['weight']
         
         self.loss_resnet_pl_smooth_masked = None
         if resnet_pl_smooth_masked is not None and resnet_pl_smooth_masked['weight'] > 0:
-            self.loss_resnet_pl_smooth_masked = ResNetPLSmoothMasked(**resnet_pl_smooth_masked.kwargs)
+            self.loss_resnet_pl_smooth_masked = ResNetPLSmoothMasked(
+                device=self.device,
+                **resnet_pl_smooth_masked.kwargs
+                )
             self.loss_resnet_pl_smooth_masked_weight = resnet_pl_smooth_masked['weight']
 
         self.loss_ref_adversarial = None

@@ -138,8 +138,12 @@ class PerceptualLoss(nn.Module):
 
 class ResNetPL(nn.Module):
 
-    def __init__(self, weight=1,
-                 weights_path=None, arch_encoder='resnet50dilated', segmentation=True):
+    def __init__(
+            self, 
+            weights_path=None, 
+            arch_encoder='resnet50dilated', 
+            segmentation=True
+        ):
         """
         Initialize the ResNet perceptual loss.
 
@@ -158,8 +162,6 @@ class ResNetPL(nn.Module):
         self.impl.eval()
         for w in self.impl.parameters():
             w.requires_grad_(False)
-
-        self.weight = weight
 
 
     def forward(self, pred, target):
@@ -181,5 +183,5 @@ class ResNetPL(nn.Module):
 
         result = torch.stack([F.mse_loss(cur_pred, cur_target)
                               for cur_pred, cur_target
-                              in zip(pred_feats, target_feats)]).sum() * self.weight
+                              in zip(pred_feats, target_feats)]).sum()
         return result

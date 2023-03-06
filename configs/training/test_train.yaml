@@ -26,7 +26,7 @@ input_masks_noise_std: 0.08 # standard deviation of the gaussian noise applied t
 input_masks_noise_smooth: 41 # size of gaussian filter applied to the noise masks
 
 ################################################
-distributed: False # enable distributed training
+distributed: True # enable distributed training
 ################################################
 
 enable_wandb: True # enable wandb logging, if False no logging will be performed on the cloud

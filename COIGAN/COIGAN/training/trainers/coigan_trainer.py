@@ -259,7 +259,7 @@ class COIGANtrainer:
             base_image = sample["base"] # [base_r, base_g, base_b] the original image without any masking
             if "ref" in sample: ref_image = sample["ref"].to(self.device) # [ref_r, ref_g, ref_b] the reference image (if config.use_ref_disc = False then ref = None)
             gen_in = sample["gen_input"].to(self.device) # [base_r, base_g, base_b, mask_0, mask_1, mask_2, mask_3]
-            gen_in_orig_masks = sample["orig_gen_input_masks"] # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
+            gen_in_orig_masks = sample["orig_gen_input_masks"].to(self.device) # [mask_0, mask_1, mask_2, mask_3] the original masks without the noise
             disc_in_true = sample["disc_input"].to(self.device) # [defect_0_r, defect_0_g, defect_0_b, defect_1_r, defect_1_g, defect_1_b, defect_2_r, defect_2_g, defect_2_b, defect_3_r, defect_3_g, defect_3_b]    
             union_mask = sample["gen_input_union_mask"] # [union_mask] the union mask of all the masks used in the generator input
             
@@ -271,7 +271,6 @@ class COIGANtrainer:
                 requires_grad(self.generator, False)
                 if self.use_ref_disc: requires_grad(self.ref_discriminator, True)
                 
-
                 #----> generate the fake images
                 fake_image = self.generator(gen_in)
                 
@@ -298,7 +297,6 @@ class COIGANtrainer:
                         "ref_fake_score": ref_disc_out_fake.mean(),
                     })
                 
-
                 # compute the discriminator losses
                 self.loss_mng.discriminator_loss(disc_out_fake, disc_out_true)
 
@@ -311,7 +309,6 @@ class COIGANtrainer:
 
                     # apply regularization to the reference discriminator
                     self.loss_mng.ref_discriminator_regularization(ref_image)
-
 
                 # determine the next turn owner
                 self.d_step += 1
@@ -368,7 +365,8 @@ class COIGANtrainer:
                     fake_image_4loss,
                     base_image_4loss,
                     disc_out_fake,
-                    ref_disc_out_fake
+                    ref_disc_out_fake,
+                    gen_in_orig_masks
                 )
 
                 if self.device == 0 :
@@ -432,6 +430,7 @@ class COIGANtrainer:
                     # add the shapes for each class
                     if self.log_shapes_and_defects:
                         for j in range(gen_in_orig_masks.shape[1]):
+                            gen_in_orig_masks.to("cpu")
                             visual_results[f"shape_{j}"] = self.make_grid(gen_in_orig_masks[:, j].unsqueeze(1))
                             visual_results[f"defect_{j}"] = self.make_grid(disc_in_true[:, j*3:(j+1)*3])
 

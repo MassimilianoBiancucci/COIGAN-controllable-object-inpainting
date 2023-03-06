@@ -13,22 +13,28 @@ class SmoothMaskedL1:
 
     def __init__(
             self,
+            channels,
+            device,
             obj_weight=0.0,
             bg_weight=1.0,
             kernel_size=51
         ):
         """
         Args:
+            channels (int): number of channels of the input tensor
             obj_weight (float, optional): L1 loss weight for object areas. Defaults to 0.0.
             bg_weight (float, optional): L1 loss weight for background areas. Defaults to 1.0.
             kernel_size (int, optional): define the kernel size used for the mask 
         """
+        self.channels = channels
         self.obj_weight = obj_weight
         self.bg_weight = bg_weight
 
+        self.device = device
+
         # convert a smoothness value in a gaussian kernel
         self.kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
-        self.kernel = torch.ones(1, 1, self.kernel_size, self.kernel_size, device=torch.device('cpu'))
+        self.kernel = torch.ones(1, self.channels, self.kernel_size, self.kernel_size, device=self.device) / (self.kernel_size ** 2)
 
 
     def __call__(self, pred, target, mask):
@@ -41,9 +47,7 @@ class SmoothMaskedL1:
 
         # create the smoothed mask
         if self.kernel_size > 0:
-            self.kernel.to(mask.device)
             mask = F.conv2d(mask, self.kernel, padding=self.kernel_size // 2)
-            mask = mask / mask.max()
 
         # convert the mask in a weight mask
         weight_mask = self.obj_weight * mask + self.bg_weight * (1 - mask)

@@ -11,9 +11,11 @@ IMAGENET_STD = torch.FloatTensor([0.229, 0.224, 0.225])[None, :, None, None]
 class ResNetPLSmoothMasked(nn.Module):
 
     def __init__(
-        self, 
-        weights_path=None, 
-        arch_encoder='resnet50dilated', 
+        self,
+        channels,
+        device,
+        weights_path=None,
+        arch_encoder='resnet50dilated',
         segmentation=True,
         obj_weight=0.0,
         bg_weight=1.0,
@@ -23,6 +25,8 @@ class ResNetPLSmoothMasked(nn.Module):
         Initialize the ResNet perceptual loss.
 
         Args:
+            channels (int): number of channels of the input tensor
+            device: device where the kernel and the model are located
             weights_path: path to the weights of the model
             arch_encoder: encoder architecture
             segmentation: whether to use segmentation
@@ -36,15 +40,19 @@ class ResNetPLSmoothMasked(nn.Module):
                                              arch_decoder='ppm_deepsup',
                                              fc_dim=2048,
                                              segmentation=segmentation)
+        self.impl.to(device)
         self.impl.eval()
         for w in self.impl.parameters():
             w.requires_grad_(False)
 
+        self.channels = channels
         self.obj_weight = obj_weight
         self.bg_weight = bg_weight
 
+        self.device = device
+
         self.kernel_size = kernel_size
-        self.kernel = torch.ones(1, 1, self.kernel_size, self.kernel_size) / (self.kernel_size ** 2)
+        self.kernel = torch.ones(1, self.channels, self.kernel_size, self.kernel_size, device=self.device) / (self.kernel_size ** 2)
         self.interpolation_mode = 'bilinear' if self.kernel_size > 1 else 'nearest'
         self.allign_corners = True if self.kernel_size > 1 else None
 
@@ -68,7 +76,6 @@ class ResNetPLSmoothMasked(nn.Module):
 
         # Compute the mask
         if self.kernel_size > 0:
-            self.kernel.to(input_mask.device)
             mask = F.conv2d(input_mask, self.kernel, padding=self.kernel_size // 2)
             #mask = mask / mask.max()
 
@@ -89,7 +96,8 @@ class ResNetPLSmoothMasked(nn.Module):
             #summed_layer_loss = layer_loss.sum(dim=1, keepdim=True)
             #masked_layer_loss = summed_layer_loss * w_mask
             #summed_masked_layer_loss = masked_layer_loss.sum()
-            layer_losses.append((layer_loss.sum(dim=1, keepdim=True) * w_mask).sum() / w_mask.sum())
+            masked_layer_loss = layer_loss.sum(dim=1, keepdim=True) * w_mask
+            layer_losses.append(masked_layer_loss.sum() / w_mask.sum())
 
         return torch.stack(layer_losses).mean()
 

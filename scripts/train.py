@@ -24,9 +24,9 @@ def main(config: OmegaConf):
     
     #resolve the config inplace
     OmegaConf.resolve(config)
-
+    
     LOGGER.info(f'Config: {OmegaConf.to_yaml(config)}')
-
+    
     OmegaConf.save(config, os.path.join(os.getcwd(), 'config.yaml')) # saving the configs to config.hydra.run.dir
 
     if config.distributed:
