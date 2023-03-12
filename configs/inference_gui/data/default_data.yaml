@@ -1,0 +1,16 @@
+
+dataset: ${input_images_folder}
+
+# settings for the mask noise generator (try to use the same as in the training)
+mask_noise_generator_kwargs:
+    kind: multiscale
+    kind_kwargs:
+      interpolation: bilinear
+      strategy: replace
+      scales: [1, 2, 4]
+      smooth: ${input_masks_noise_smooth}
+      base_generator_kwargs:
+        kind: gaussian
+        kind_kwargs:
+          mean: ${input_masks_noise_mean}
+          std: ${input_masks_noise_std}

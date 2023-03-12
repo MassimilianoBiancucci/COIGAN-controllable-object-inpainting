@@ -1,0 +1,34 @@
+
+conf_name: COIGAN_inference_test_1
+run_name: ${conf_name}_${now:%d-%m-%Y_%H-%M-%S}
+
+# device to use for inference
+device: cuda:0
+
+# path to the checkpoint file to load
+checkpoint_path: /home/max/thesis/COIGAN-controllable-object-inpainting/models/latest/190000.pt
+
+# add here the path to the folder containing the images to be inpainted
+input_images_folder: /home/max/thesis/COIGAN-controllable-object-inpainting/datasets/severstal_steel_defect_dataset/test_1/tile_test_set/data
+
+# other data preparation params
+mask_base_img: False # If true zero out the base image where the concat masks are 1s, for the input_base_img and for the generator output
+use_g_ema: False # use exponential moving average for the generator (if set to true and the checkpoint dosen't contain the g_ema state_dict, the script will raise an error)
+
+# mask noise parameters
+input_masks_noise_mean: 0.5 # mean of the gaussian noise applied to the input masks
+input_masks_noise_std: 0.08 # standard deviation of the gaussian noise applied to the input masks
+input_masks_noise_smooth: 41 # size of gaussian filter applied to the noise masks
+
+# class names of the objects to be inpainted
+classes:
+    - defect_0
+    - defect_1
+    - defect_2
+    - defect_3
+
+defaults:
+  - data: default_data
+  - location: default_locations
+  - generator: ffc_resnet_075
+  - hydra: overrides

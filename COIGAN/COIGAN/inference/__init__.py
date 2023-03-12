@@ -1,1 +1,2 @@
 from COIGAN.inference.coigan_inference import COIGANinference
+from COIGAN.inference.coigan_inference_gui import COIGANinferenceGui

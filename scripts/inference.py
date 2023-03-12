@@ -11,13 +11,13 @@ import hydra
 from omegaconf import OmegaConf
 
 from COIGAN.training.data.datasets_loaders import make_dataloader
-from COIGAN.inference import COIGANinference
+from COIGAN.inference import COIGANinferenceGui
 
 from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 
-@hydra.main(config_path="../configs/inference/", config_name="test_inference.yaml", version_base="1.1")
+@hydra.main(config_path="../configs/inference/", config_name="test_inference_1.yaml", version_base="1.1")
 def main(config: OmegaConf):
     
     #resolve the config inplace
@@ -27,8 +27,8 @@ def main(config: OmegaConf):
 
     OmegaConf.save(config, os.path.join(os.getcwd(), 'config.yaml')) # saving the configs to config.hydra.run.dir
 
-    
-
+    inferenceGui = COIGANinferenceGui(config)
+    inferenceGui.run()
 
 if __name__ == "__main__":
     main()

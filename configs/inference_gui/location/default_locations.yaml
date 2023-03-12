@@ -1,0 +1,11 @@
+#####################################################################################
+### ATTENTION : This var must be setted with the actual path to the project home! ###
+#project_home: /home/max/thesis/COIGAN-controllable-object-inpainting
+project_home: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
+#####################################################################################
+
+out_root_dir: ${location.project_home}/experiments_inference
+
+experiment_path: ${location.out_root_dir}/${run_name}
+logs_dir: ${location.experiment_path}/logs
+samples_dir: ${location.experiment_path}/samples

@@ -9,8 +9,8 @@ Project that aim to realize a GAN model capable of coherent objects inpainting i
 - [Lama](https://github.com/advimman/lama) A pytorch implementation of a GAN model for inpainting, that exploit the Fourier transform.
 
 # Some results of the COIGAN model
+![Sample result from Coigan model training](images/sample_image_95000.jpg)
 
-TODO add here some graphs and images...
 
 # Install the COIGAN module
 In this section is expleined how to install the COIGAN module in your system, with all his dependencies.
