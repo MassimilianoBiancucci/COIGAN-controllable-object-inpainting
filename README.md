@@ -14,7 +14,7 @@ These images are a batch of 8 inputs and 8 outputs of the model, extracted from 
 
 ![Sample result from Coigan model training](images/sample_image_95000.jpg)
 
-The iamge show (left) the base images used for the inpainting process, (center) the mask concatenated to the base images, giving to the model a reference where to apply the defects (note: as a semplifications more classes are collapsed into one single maps, but the masks are splitted in 4 classes/channels in the training), (right) the output of the model, that is the inpainted image.
+The image show (left) the base images used for the inpainting process, (center) the masks concatenated to the base images, giving to the model a reference where to apply the defects (note: to simplify the illustration the masks have been collapsed into one, but the masks are splitted in 4 classes/channels in the training), (right) the output of the model (the inpainted images).
 
 # Install the COIGAN module
 In this section is expleined how to install the COIGAN module in your system, with all his dependencies.
@@ -207,3 +207,31 @@ There are all the parameters to tweak the losses used in the training, the losse
 
 ## Launch the training script
 To launch the training script and train a COIGAN model you only need to run the script `train.py` in the `COIGAN-controllable-object-inpainting/scripts` folder.
+
+# Evaluate the COIGAN model
+To evaluate the COIGAN model you can use the script `eval.py` or the `inference.py` scripts in the `COIGAN-controllable-object-inpainting/scripts` folder.
+
+## Manual evaluation
+To manually evaluate the COIGAN model you can use the script `inference.py`, that script load a folder of images and open 2+n cv2 windows, where n is the number of defect classes of the model, and the other 2 windows are for the base image and the inpainted image.
+With this method you can manually draw the inpainting mask for each class, and then pass it to the model to inpaint the image, for a direct evaluation.
+![inference gui demo](images/inference_gui_demo.gif)
+
+The manual interface script work with the following keys:
+- Hold the right mouse button to draw the inpainting mask.
+- Hold the center mouse button to erase the inpainting mask.
+- Press 'h' to show the help message.
+- Press 'q' to quit the program.
+- Press <space bar> to load the next image.
+- Press 'w' to perform the inference.
+- Press 'r' to reset the masks.
+- Press 's' to save the sample (input image, masks and output image)
+- Press '+' to increase the brush size.
+- Press '-' to decrease the brush size.
+
+Other settings can be changed in the file:
+```yaml
+/<your_path>/COIGAN-controllable-object-inpainting/configs/inference/test_inference_1.yaml
+```
+
+## Automatic inference
+This paragraph explain how to use the script for the automatic inference, passing to the script a dataloader like in the training script and generating a dataset of inpainted images, that will be compared with the test set with a FID score.

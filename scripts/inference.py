@@ -17,7 +17,7 @@ from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 
-@hydra.main(config_path="../configs/inference/", config_name="test_inference_1.yaml", version_base="1.1")
+@hydra.main(config_path="../configs/inference_gui/", config_name="test_inference_1.yaml", version_base="1.1")
 def main(config: OmegaConf):
     
     #resolve the config inplace

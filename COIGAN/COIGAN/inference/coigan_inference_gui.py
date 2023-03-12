@@ -145,12 +145,16 @@ class COIGANinferenceGui:
         Method that print the help message.
         """
         print("""HELP: (key list)
+        - Hold the right mouse button to draw the inpainting mask.
+        - Hold the center mouse button to erase the inpainting mask.
         - Press 'h' to show this help message.
         - Press 'q' to quit the program.
         - Press <space bar> to load the next image.
         - Press 'w' to perform the inference.
         - Press 'r' to reset the masks.
         - Press 's' to save the sample (input image, masks and output image)
+        - Press '+' to increase the brush size.
+        - Press '-' to decrease the brush size.
         """)
 
     
@@ -166,21 +170,40 @@ class COIGANinferenceGui:
             key = cv2.waitKey(0)
 
             if key == ord('q'):
+                print("pressed 'q', quitting the program")
                 break
 
             elif key == ord('h'):
+                print("pressed 'h', showing the help message")
                 self.help()
 
             elif key == ord(' '):
+                print("pressed <space bar>, loading the next image")
                 self.next_image()
 
             elif key == ord('w'):
+                print("pressed 'w', performing the inference")
                 self.inference()
 
             elif key == ord('r'):
+                print("pressed 'r', resetting the masks")
                 MaskGuiWindow.reset()
+            
+            elif key == ord('+'):
+                print("pressed '+', increasing the brush size")
+                MaskGuiWindow.set_brush_radius(MaskGuiWindow.brush_radius + 1)
+                print(f"Brush radius set to: {MaskGuiWindow.brush_radius}")
+
+            elif key == ord('-'):
+                print("pressed '-', decreasing the brush size")
+                if MaskGuiWindow.brush_radius > 1:
+                    MaskGuiWindow.set_brush_radius(MaskGuiWindow.brush_radius - 1)
+                    print(f"Brush radius set to: {MaskGuiWindow.brush_radius}")
+                else:
+                    print("Brush radius already at minimum value: 1")
 
             elif key == ord('s'):
+                print("pressed 's', saving the sample")
                 self.save_sample()
         
         cv2.destroyAllWindows()

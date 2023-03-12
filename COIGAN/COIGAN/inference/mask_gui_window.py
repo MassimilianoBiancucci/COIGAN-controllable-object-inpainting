@@ -92,7 +92,7 @@ class MaskGuiWindow:
         """
         assert radius > 0, "The radius must be positive and not null"
         cls.brush_radius = radius
-
+        
 
     @classmethod
     def get_masks(cls, normalized: bool = True):
