@@ -1,0 +1,6 @@
+# @package _group_
+run:
+  dir: ${location.experiment_path}
+sweep:
+  dir: ${hydra:run.dir}_sweep
+  subdir: ${hydra.job.num}

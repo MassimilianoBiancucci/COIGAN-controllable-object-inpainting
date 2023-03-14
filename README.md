@@ -8,6 +8,26 @@ Project that aim to realize a GAN model capable of coherent objects inpainting i
 - [Swagan](https://github.com/rosinality/stylegan2-pytorch) A pytorch implementation of Stylegan2 based on wavelets, without progressive growing.
 - [Lama](https://github.com/advimman/lama) A pytorch implementation of a GAN model for inpainting, that exploit the Fourier transform.
 
+# Table of contents
+- [Table of contents](#table-of-contents)
+- [Model results](#model-results)
+- [Install the COIGAN module](#install-the-coigan-module)
+    - [Create a virtual environment](#create-a-virtual-environment)
+    - [Install torch and torchvision](#install-torch-and-torchvision)
+    - [Install the COIGAN module](#install-the-coigan-module-1)
+- [Prepare the Severstal steel defect dataset](#prepare-the-severstal-steel-defect-dataset)
+  - [Setup the kaggle api](#setup-the-kaggle-api)
+  - [Run the dataset preparation script](#run-the-dataset-preparation-script)
+    - [Data preparation settings](#data-preparation-settings)
+- [Train a COIGAN model](#train-a-coigan-model)
+  - [Download the needed models](#download-the-needed-models)
+  - [Setup the configuration files](#setup-the-configuration-files)
+  - [The losses](#the-losses)
+  - [Launch the training script](#launch-the-training-script)
+- [Evaluate the COIGAN model](#evaluate-the-coigan-model)
+  - [Manual evaluation](#manual-evaluation)
+  - [Evaluate with FID score](#evaluate-with-fid-score)
+
 # Model results
 
 These images are a batch of 8 inputs and 8 outputs of the model, extracted from the 95000 step of one of the training sessions.
@@ -233,5 +253,5 @@ Other settings can be changed in the file:
 /<your_path>/COIGAN-controllable-object-inpainting/configs/inference/test_inference_1.yaml
 ```
 
-## Automatic inference
-This paragraph explain how to use the script for the automatic inference, passing to the script a dataloader like in the training script and generating a dataset of inpainted images, that will be compared with the test set with a FID score.
+## Evaluate with FID score
+This paragraph explain how to use the script for the automatic inference, passing to the script a dataloader like in the training script and generating a dataset of inpainted images, to be compared with the test set trough the FID score.

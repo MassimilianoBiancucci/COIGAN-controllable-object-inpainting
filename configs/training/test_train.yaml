@@ -34,10 +34,8 @@ log_img_interval: 500 # steps interval between each output visualization
 log_weights_interval: 500 # steps interval between each weights visualization
 checkpoint_interval: 10000 # steps interval between each checkpoint
 
-
 # logging other options
 log_shapes_and_defects: False # enable the logging of input shapes and defects during the images logging
-
 
 defaults:
   - location: default_locations

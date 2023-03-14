@@ -10,10 +10,7 @@ import torch
 import hydra
 from omegaconf import OmegaConf
 
-from COIGAN.training.data.datasets_loaders import make_dataloader
 from COIGAN.inference import COIGANinferenceGui
-
-from COIGAN.utils.ddp_utils import ddp_setup
 
 LOGGER = logging.getLogger(__name__)
 

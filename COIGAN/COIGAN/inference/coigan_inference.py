@@ -17,7 +17,13 @@ class COIGANinference:
         self,
         config: DictConfig
     ):
-        
+        """
+        Init method of the COIGAN inference class,
+        this class is used to load the model and inpaint images.
+
+        Args:
+            config (DictConfig): config of the model
+        """
         # save the config
         self.config = config
 
@@ -62,14 +68,49 @@ class COIGANinference:
     def __call__(
             self, 
             img,
-            masks
+            masks = None
         ):
         """
-            Method that perform the inference on the input image.
+            Method that perform the inference on the input image,
+            allowing to pass the input image and the masks as numpy arrays
+            or as torch tensors.
+
+            NOTE: 
+                - If the input image is a numpy array, the masks must be a numpy array
+                and passed separately from the image.
+                - If the input image is a torch tensor, 
+                the masks must be None and already concatenated to the img.
 
             Args:
-                img (numpy.): the input image
-                mask (torch.Tensor): the mask tensor
+                img (np.ndarray or torch.Tensor): the input image
+                mask (np.ndarray or None): the masks tensor
+
+        """
+
+        if isinstance(img, np.ndarray):
+            assert isinstance(masks, np.ndarray), "If the input image is a numpy array, the masks must be a numpy array"
+            return self.np_inference(img, masks)
+    
+        elif isinstance(img, torch.Tensor):
+            assert masks is None, "If the input is a torch tensor, the masks must be None"
+            return self.torch_inference(img)
+    
+        else:
+            raise TypeError("The input image must be a numpy array or a torch tensor")
+
+
+    def np_inference(
+        self,
+        img,
+        masks
+    ):
+        """
+            Method that perform the inference on the input image,
+            considering the input image and the masks as numpy arrays.
+
+            Args:
+                img (np.ndarray): the input image
+                mask (np.ndarray): the masks array
         """
 
         # if needed mask the img to remove the background where 
@@ -89,10 +130,31 @@ class COIGANinference:
         with torch.no_grad():
             output = self.generator(input)
         
-        # convert the output to a numpy array
-        output = self.tensor2img(output)
+        # convert the output to a numpy arrayand return it
+        return self.tensor2img(output)
 
-        return output
+
+    def torch_inference(
+        self,
+        input: torch.Tensor
+    ):
+        """
+            Method that perform the inference on the input image,
+            considering the input image and the masks as torch tensors.
+
+            Args:
+                img (torch.Tensor): the input image
+        """
+
+        # If the torch input is chosen the correct base masking should be provided
+        # from the dataloader if needed.
+
+        # generate the output
+        with torch.no_grad():
+            output = self.generator(input)
+
+        # return the output and return it
+        return self.tensor2img(output)
 
 
     def img2tensor(
@@ -113,8 +175,8 @@ class COIGANinference:
         return img.unsqueeze(0)
 
 
-    @staticmethod
     def tensor2img(
+            self,
             tensor
         ):
         """
@@ -124,10 +186,16 @@ class COIGANinference:
                 tensor (torch.Tensor): the input tensor with format (1, C, H, W) and values in range [0, 1]
 
             Returns:
-                np.ndarray: the numpy array with shape (H, W, C) and values in range [0, 255]
+                np.ndarray or List[np.ndarray]: the numpy array with shape (H, W, C) and values in range [0, 255]
+                    if the output has a batch size of 1, otherwise it returns a list of numpy arrays
         """
-
-        return (tensor[0].cpu().numpy().transpose(1, 2, 0) * 255).astype(np.uint8)
+        if tensor.shape[0] > 1:
+            return [
+                (tensor[i].cpu().numpy().transpose(1, 2, 0) * 255).astype(np.uint8)
+                for i in range(tensor.shape[0])
+            ]
+        else:
+            return (tensor[0].cpu().numpy().transpose(1, 2, 0) * 255).astype(np.uint8)
 
 
     def masks2Tensor(

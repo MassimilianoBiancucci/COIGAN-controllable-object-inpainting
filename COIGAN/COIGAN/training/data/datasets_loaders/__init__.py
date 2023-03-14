@@ -101,7 +101,7 @@ def make_severstal_steel_defect(config: DictConfig, seed: int = None):
             **config.shape_dataloader_kwargs
         )
         for object_dataset_path in object_datasets_paths
-    ] if config.differet_shapes else None
+    ] if config.different_shapes else None
 
     # create the object dataset
     object_dataloaders = [
