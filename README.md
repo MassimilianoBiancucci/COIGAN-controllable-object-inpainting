@@ -32,10 +32,14 @@ Project that aim to realize a GAN model capable of coherent objects inpainting i
 
 ### Dataset used for the training
 The dataset used for the training is the [Severstal steel defect detection](https://www.kaggle.com/competitions/severstal-steel-defect-detection) dataset, that contains images of steel plates with defects, and the corresponding masks that indicate the location of the defects. This dataset was splited in 2 halves, one for the training and one for the evaluation of the model, and then tilled in 256x256 images, from an initial resolution of 256x1600.
-Below some images from the original dataset:
-![Sample images from the Severstal steel defect dataset](images/severstal_dataset_demo.jpg)
+Below some images from the original dataset, showing the different defect classes:
+
+<p align="center">
+    <img src="images/severstal_dataset_demo.jpg" width="582" height="432" />
+</p>
+
 ### Sample results
-These images are a batch of 8 inputs and 8 outputs of the model, extracted from the 95000 step of one of the training sessions.
+These images are a batch of 8 inputs and 8 outputs of the model, extracted from the step 190000 of the released model.
 
 ![Sample result from Coigan model training](images/sample_image_95000.jpg)
 
