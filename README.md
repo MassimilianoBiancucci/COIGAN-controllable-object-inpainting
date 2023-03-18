@@ -30,11 +30,19 @@ Project that aim to realize a GAN model capable of coherent objects inpainting i
 
 # Model results
 
+### Dataset used for the training
+The dataset used for the training is the [Severstal steel defect detection](https://www.kaggle.com/competitions/severstal-steel-defect-detection) dataset, that contains images of steel plates with defects, and the corresponding masks that indicate the location of the defects. This dataset was splited in 2 halves, one for the training and one for the evaluation of the model, and then tilled in 256x256 images, from an initial resolution of 256x1600.
+Below some images from the original dataset:
+![Sample images from the Severstal steel defect dataset](images/severstal_dataset_demo.jpg)
+### Sample results
 These images are a batch of 8 inputs and 8 outputs of the model, extracted from the 95000 step of one of the training sessions.
 
 ![Sample result from Coigan model training](images/sample_image_95000.jpg)
 
 The image show (left) the base images used for the inpainting process, (center) the masks concatenated to the base images, giving to the model a reference where to apply the defects (note: to simplify the illustration the masks have been collapsed into one, but the masks are splitted in 4 classes/channels in the training), (right) the output of the model (the inpainted images).
+
+### Fid evaluation
+The FID score of the released model calculated with the tiled test set (not used for the gan training) 
 
 # Install the COIGAN module
 In this section is expleined how to install the COIGAN module in your system, with all his dependencies.
