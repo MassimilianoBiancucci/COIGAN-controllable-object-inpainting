@@ -93,7 +93,7 @@ class COIGANinference:
     
         elif isinstance(img, torch.Tensor):
             assert masks is None, "If the input is a torch tensor, the masks must be None"
-            return self.torch_inference(img)
+            return self.torch_inference(img.to(self.device))
     
         else:
             raise TypeError("The input image must be a numpy array or a torch tensor")

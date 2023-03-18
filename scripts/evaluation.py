@@ -10,6 +10,8 @@ import cv2
 import torch
 
 import hydra
+
+from tqdm import tqdm
 from omegaconf import OmegaConf
 
 from COIGAN.utils.common_utils import sample_data
@@ -33,6 +35,7 @@ def generate_inference_dataset(config):
     dataloader = sample_data(make_dataloader(config))
     model = COIGANinference(config)
     idx = 0
+    pbar = tqdm(total=n_samples)
 
     while True:
         # inference on the next sample
@@ -42,6 +45,7 @@ def generate_inference_dataset(config):
         # save the inpainted image in the target folder
         for img in inpainted_img:
             cv2.imwrite(os.path.join(out_path, f"{idx}.png"), img)
+            pbar.update()
             idx += 1
 
             if idx >= n_samples:
@@ -50,7 +54,7 @@ def generate_inference_dataset(config):
 
 @hydra.main(config_path="../configs/evaluation/", config_name="test_eval.yaml", version_base="1.1")
 def main(config: OmegaConf):
-    
+
     #resolve the config inplace
     OmegaConf.resolve(config)
 
@@ -63,21 +67,31 @@ def main(config: OmegaConf):
     LOGGER.info("Generating the dataset for the evaluation step...")
     generate_inference_dataset(config)
 
+    ref_fid = calculate_fid_given_paths(
+        [config.train_imgs_path, config.test_imgs_path],
+        config.inc_batch_size,
+        config.device,
+        config.inception_dims,
+        n_imgs=config.n_samples
+    )
+    LOGGER.info(f"Ref FID: {ref_fid}")
+
     # evaluate the generated dataset with the FID metric
     fid = calculate_fid_given_paths(
-        [config.generated_imgs_path, config.real_imgs_path],
-        config.batch_size,
+        [config.generated_imgs_path, config.test_imgs_path],
+        config.inc_batch_size,
         config.device,
-        config.inception_dims
+        config.inception_dims,
+        n_imgs=config.n_samples
     )
+    LOGGER.info(f"FID: {fid}")
 
     # create a report of the evaluation
-    report = {
-        "FID": fid
-    }
-
     with open(os.path.join(os.getcwd(), "report.json"), "w") as f:
-        json.dump(report, f)
+        json.dump({
+            "ref FID": ref_fid,
+            "FID": fid
+        }, f)
 
 
 if __name__ == "__main__":

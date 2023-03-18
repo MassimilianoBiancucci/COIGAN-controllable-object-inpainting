@@ -78,6 +78,11 @@ coigan_dataset_kwargs:
           mean: ${input_masks_noise_mean}
           std: ${input_masks_noise_std}
 
+# ATTENTION:
+# this disable the mask noise generator in the inference model
+# because it's already executed in the dataloder during the evaluation
+mask_noise_generator_kwargs: null
+
 torch_dataloader_kwargs:
   batch_size: ${data.batch_size}
   num_workers: ${data.num_workers}

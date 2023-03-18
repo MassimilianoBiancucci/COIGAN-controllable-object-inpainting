@@ -2,7 +2,7 @@
 #########################################
 # DATSET NAME
 # name of the generated dataset 
-dataset_name: test_1
+dataset_name: test_full_train
 
 # Change this to your own path of the COIGAN-controllable-object-inpainting repo
 repo_dir: /home/ubuntu/hdd/COIGAN-controllable-object-inpainting
@@ -63,8 +63,8 @@ split_mode: fair # specify the splitting mode, random or fair
 dataset_splitter_kwargs:
   dataset_path: ${jsonl_dataset_dir}
   output_dir: ${dataset_dir}/${dataset_name}
-  train_ratio: 0.5
-  test_ratio: 0.5
+  train_ratio: 0.95
+  test_ratio: 0.05
   binary: ${binary}
   target_field: polygons # needed for the fair splitting (ignored for the random splitting)
   tile_size: ${original_tile_size}

@@ -6,16 +6,20 @@ run_name: ${conf_name}_${now:%d-%m-%Y_%H-%M-%S}
 device: cuda:0
 
 # path to the checkpoint file to load
-checkpoint_path: ${location.project_home}/models/latest/190000.pt
+checkpoint_path: ${location.project_home}/models/190000.pt
 
-# path for the reference images usd to create FID reference distribution
+# path for the train images used to create a FID reference distribution
+# (the FID generated between the train_set and the test_set is used to evaluate the FID obtained by the generated images and the test_set)
+train_imgs_path: ${location.project_home}/datasets/severstal_steel_defect_dataset/test_1/tile_train_set/data
+
+# path for the reference images used to create FID reference distribution
 test_imgs_path: ${location.project_home}/datasets/severstal_steel_defect_dataset/test_1/tile_test_set/data
 
 # path for the generated images
 generated_imgs_path: ${location.experiment_path}/generated_imgs
 
 # evaluation variables
-n_samples: 5000 # number of samples to generate for the evaluation
+n_samples: 40000 # number of samples to generate for the evaluation, (the same num of images are randomly selected from the test_imgs_path)
 inception_dims: 2048 # dimension of the inception features
 # NOTE the inception dims available are:
 #   64: 0,   # First max pooling features
@@ -23,9 +27,9 @@ inception_dims: 2048 # dimension of the inception features
 #   768: 2,  # Pre-aux classifier features
 #   2048: 3  # Final average pooling features
 
-device: cuda:0 # device to use for inference
-batch_size: 8 # batch size for each training process
-num_workers: 6 # dataloader workers
+batch_size: 16 # batch size for the coigan generator
+inc_batch_size: 32 # batch size for the inception network
+num_workers: 8 # dataloader workers
 prefetch: 4
 
 
@@ -38,8 +42,12 @@ input_masks_noise_mean: 0.5 # mean of the gaussian noise applied to the input ma
 input_masks_noise_std: 0.08 # standard deviation of the gaussian noise applied to the input masks
 input_masks_noise_smooth: 41 # size of gaussian filter applied to the noise masks
 
+# data variables
+max_iter: 10000 # expected by the severstal_dataset config files 
+distributed: False # DO NOT CHANGE, the distributed option is not implemented for the evaluation, needed only as dataloader parameter
+
 defaults:
-  - data: default_eval_data
+  - data: severstal_dataset
   - location: default_locations
   - generator: ffc_resnet_075
   - hydra: overrides

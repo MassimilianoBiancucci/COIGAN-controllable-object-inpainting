@@ -35,6 +35,7 @@ limitations under the License.
 import os
 import logging
 import pathlib
+import random
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
 import numpy as np
@@ -60,8 +61,7 @@ except ModuleNotFoundError:
 
 LOGGER = logging.getLogger(__name__)
 
-transform = Compose([Resize(256), CenterCrop(256), ToTensor()])
-
+transform = ToTensor()
 
 def get_activations(files, model, batch_size=50, dims=2048,
                     device='cuda', verbose=False, keep_size=False):
@@ -116,13 +116,11 @@ def get_activations(files, model, batch_size=50, dims=2048,
         # batch = torch.from_numpy(images).type(torch.FloatTensor)
         # #
 
-        t = transform if not keep_size else ToTensor()
-
         if isinstance(files[0], pathlib.PosixPath):
-            images = [t(Image.open(str(f))) for f in files[start:end]]
+            images = [transform(Image.open(str(f))) for f in files[start:end]]
 
         elif isinstance(files[0], Image.Image):
-            images = [t(f) for f in files[start:end]]
+            images = [transform(f) for f in files[start:end]]
 
         else:
             raise ValueError(f"Unknown data type for image: {type(files[0])}")
@@ -226,7 +224,7 @@ def calculate_activation_statistics(files, model, batch_size=50,
     return mu, sigma
 
 
-def _compute_statistics_of_path(path, model, batch_size, device='cuda', dims=2048):
+def _compute_statistics_of_path(path, model, batch_size, device='cuda', dims=2048, n_smpl=-1):
     if path.endswith('.npz'):
         f = np.load(path)
         m, s = f['mu'][:], f['sigma'][:]
@@ -234,7 +232,14 @@ def _compute_statistics_of_path(path, model, batch_size, device='cuda', dims=204
     else:
         path = pathlib.Path(path)
         files = list(path.glob('*.jpg')) + list(path.glob('*.png'))
-        m, s = calculate_activation_statistics(files, model, batch_size, device, dims)
+
+        if n_smpl > 0:
+            random.shuffle(files)
+            n_smpl = min(n_smpl, len(files))
+            files = files[:n_smpl]
+
+        LOGGER.info(f"Using {len(files)} samples from {path} for embedded mean and std calculation.")
+        m, s = calculate_activation_statistics(files, model, batch_size, dims, device)
 
     return m, s
 
@@ -250,8 +255,26 @@ def _compute_statistics_of_images(images, model, batch_size, dims, cuda, keep_si
         raise ValueError
 
 
-def calculate_fid_given_paths(paths, batch_size=8, device='cuda', dims=2048):
-    """Calculates the FID of two paths"""
+def calculate_fid_given_paths(
+        paths, 
+        batch_size=8, 
+        device='cuda', 
+        dims=2048, 
+        n_imgs=-1, 
+        seed=42
+    ):
+    """
+    Calculates the FID of two paths
+    
+    Args:
+        paths: list of two paths to the generated images and real images
+        batch_size: batch size for inception v3
+        device: device to run on. Default is cuda
+        dims: number of dimensions of Inception features to use [2048, 768, 192, 64]
+        n_imgs: number of images to use for FID calculation. Default is -1 (use all images). 
+            If exeeding the number of images in the folder, the maximum number of images is used.
+        seed: random seed for shuffling the images. Default is 42.
+    """
     for p in paths:
         if not os.path.exists(p):
             raise RuntimeError('Invalid path: %s' % p)
@@ -261,10 +284,10 @@ def calculate_fid_given_paths(paths, batch_size=8, device='cuda', dims=2048):
     model = InceptionV3([block_idx]).to(device)
 
     LOGGER.info('Calculating the Inception mean and std of %s images.' % len(paths))
-    m1, s1 = _compute_statistics_of_path(paths[0], model, batch_size, device, dims)
+    m1, s1 = _compute_statistics_of_path(paths[0], model, batch_size, device, dims, n_smpl=n_imgs)
     
     LOGGER.info('Calculating the Inception mean and std of %s images.' % len(paths))
-    m2, s2 = _compute_statistics_of_path(paths[1], model, batch_size, device, dims)
+    m2, s2 = _compute_statistics_of_path(paths[1], model, batch_size, device, dims, n_smpl=n_imgs)
 
     LOGGER.info('Calculating FID..')
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
@@ -272,7 +295,7 @@ def calculate_fid_given_paths(paths, batch_size=8, device='cuda', dims=2048):
     return fid_value
 
 
-def calculate_fid_given_images(images, batch_size, cuda, dims, use_globals=False, keep_size=False):
+def calculate_fid_given_images(images, batch_size, cuda, dims, use_globals=False):
     if use_globals:
         global FID_MODEL  # for multiprocessing
 
@@ -295,10 +318,8 @@ def calculate_fid_given_images(images, batch_size, cuda, dims, use_globals=False
     else:
         model = FID_MODEL
 
-    m1, s1 = _compute_statistics_of_images(images[0], model, batch_size,
-                                        dims, cuda, keep_size=False)
-    m2, s2 = _compute_statistics_of_images(images[1], model, batch_size,
-                                        dims, cuda, keep_size=False)
+    m1, s1 = _compute_statistics_of_images(images[0], model, batch_size, dims, cuda)
+    m2, s2 = _compute_statistics_of_images(images[1], model, batch_size, dims, cuda)
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
     return fid_value
 
