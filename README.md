@@ -66,8 +66,8 @@ deactivate
 ```
 ### Install torch and torchvision
 The project is tested with CUDA 11.5, and with the following version of torch and torchvision:
-- torch 1.2.1+cu116
-- torchvision 0.13.10.13.1+cu116
+- torch 1.12.1+cu116
+- torchvision 0.13.1+cu116
 
 You can install these versions with the following command, considering a Linux system with CUDA 11.6 or 11.5 installed:
 ```bash
